@@ -26,8 +26,9 @@ type Controllers struct {
 	Terminal   *controllers.TerminalController
 	Settings   *controllers.SettingsController
 	Dependency *controllers.DependencyController
-	Agent      *controllers.AgentController
-	Mise       *controllers.MiseController
+	Agent        *controllers.AgentController
+	Mise         *controllers.MiseController
+	Notification *controllers.NotificationController
 }
 
 func mustSubFS(fsys fs.FS, dir string) fs.FS {
@@ -199,6 +200,9 @@ func Setup(c *Controllers) *gin.Engine {
 				settings.GET("/backup/status", c.Settings.GetBackupStatus)
 				settings.GET("/backup/download", c.Settings.DownloadBackup)
 				settings.POST("/restore", c.Settings.RestoreBackup)
+				// 通用设置接口
+				settings.GET("/:section/:key", c.Settings.GetSetting)
+				settings.POST("/:section/:key/generate", c.Settings.GenerateSettingToken)
 			}
 
 			// Dependency routes (依赖管理)
@@ -246,6 +250,26 @@ func Setup(c *Controllers) *gin.Engine {
 			{
 				agentAPIv1.GET("/download", c.Agent.Download)
 			}
+
+			// 通知推送模块
+			notify := authorized.Group("/notify")
+			{
+				notify.GET("/types", c.Notification.GetChannelTypes)
+				notify.GET("/channels", c.Notification.GetChannels)
+				notify.POST("/channels", c.Notification.SaveChannel)
+				notify.DELETE("/channels/:id", c.Notification.DeleteChannel)
+				notify.POST("/channels/test", c.Notification.TestChannel)
+				notify.GET("/bindings", c.Notification.GetBindings)
+				notify.POST("/bindings", c.Notification.SaveBinding)
+				notify.DELETE("/bindings/:id", c.Notification.DeleteBinding)
+			}
+		}
+
+		// 通知发送 API（使用通知 Token 认证，供脚本调用）
+		notifyAPI := api.Group("/notify")
+		notifyAPI.Use(middleware.NotifyTokenAuth())
+		{
+			notifyAPI.POST("/send", c.Notification.SendNotification)
 		}
 	}
 

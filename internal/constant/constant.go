@@ -34,6 +34,7 @@ const (
 	SectionSystem    = "system"
 	SectionScheduler = "scheduler"
 	SectionSecurity  = "security"
+	SectionNotify    = "notify"
 
 	// Site Settings Key 常量
 	KeyTitle      = "title"
@@ -53,6 +54,25 @@ const (
 	KeyWorkerCount  = "worker_count"
 	KeyQueueSize    = "queue_size"
 	KeyRateInterval = "rate_interval"
+
+	// Notify Settings Key 常量
+	KeyNotifyChannels = "channels"
+	KeyNotifyEvents   = "events"
+	KeyNotifyToken    = "notify_token"
+
+	// 事件绑定类型
+	BindingTypeSystem = "system"
+	BindingTypeTask   = "task"
+
+	// 系统事件类型
+	EventUserLogin        = "user_login"
+	EventBruteForceLogin  = "brute_force_login"
+	EventPasswordChanged  = "password_changed"
+
+	// 任务事件类型
+	EventTaskSuccess = "task_success"
+	EventTaskFailed  = "task_failed"
+	EventTaskTimeout = "task_timeout"
 
 	// WebSocket 消息类型
 	WSTypeHeartbeat     = "heartbeat"

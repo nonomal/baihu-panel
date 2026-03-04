@@ -76,6 +76,10 @@ func (sc *SettingsController) ChangePassword(c *gin.Context) {
 		return
 	}
 
+	go services.NewNotificationService().TriggerEvent(constant.BindingTypeSystem, constant.EventPasswordChanged, "", map[string]interface{}{
+		"username": user.Username,
+	})
+
 	utils.SuccessMsg(c, "密码修改成功")
 }
 
@@ -372,4 +376,40 @@ func (sc *SettingsController) RestoreBackup(c *gin.Context) {
 	}
 
 	utils.SuccessMsg(c, "恢复成功")
+}
+
+// GetSetting 获取单个设置值
+func (sc *SettingsController) GetSetting(c *gin.Context) {
+	section := c.Param("section")
+	key := c.Param("key")
+	
+	if section == "" || key == "" {
+		utils.BadRequest(c, "参数错误")
+		return
+	}
+	
+	value := sc.settingsService.Get(section, key)
+	utils.Success(c, value)
+}
+
+// GenerateSettingToken 为指定设置生成随机token
+func (sc *SettingsController) GenerateSettingToken(c *gin.Context) {
+	section := c.Param("section")
+	key := c.Param("key")
+	
+	if section == "" || key == "" {
+		utils.BadRequest(c, "参数错误")
+		return
+	}
+	
+	// 生成32位随机token
+	token := strings.ToLower(utils.RandomString(32))
+	
+	// 保存到数据库
+	if err := sc.settingsService.Set(section, key, token); err != nil {
+		utils.ServerError(c, "保存失败")
+		return
+	}
+	
+	utils.Success(c, token)
 }

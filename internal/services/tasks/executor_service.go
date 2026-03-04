@@ -39,6 +39,11 @@ type EnvService interface {
 	GetEnvVarsByIDs(ids string) []string
 }
 
+// Notifier 通知服务接口定义（避免循环依赖）
+type Notifier interface {
+	TriggerEvent(bindingType string, eventType string, dataID string, templateData map[string]interface{})
+}
+
 // ExecutorService handles task execution and scheduling
 type ExecutorService struct {
 	taskService     *TaskService
@@ -46,6 +51,7 @@ type ExecutorService struct {
 	agentWSManager  AgentWSManager
 	settingsService SettingsService
 	envService      EnvService
+	notifier        Notifier
 	scheduler       *executor.Scheduler
 	cronManager     *executor.CronManager
 	results         []executor.ExecutionResult
@@ -65,6 +71,7 @@ func NewExecutorService(
 	agentWSManager AgentWSManager,
 	settingsService SettingsService,
 	envService EnvService,
+	notifier Notifier,
 ) *ExecutorService {
 	es := &ExecutorService{
 		taskService:     taskService,
@@ -72,6 +79,7 @@ func NewExecutorService(
 		agentWSManager:  agentWSManager,
 		settingsService: settingsService,
 		envService:      envService,
+		notifier:        notifier,
 		results:         make([]executor.ExecutionResult, 0, 100),
 		stopCh:          make(chan struct{}),
 	}
@@ -246,6 +254,29 @@ func (h *ServerSchedulerHandler) OnTaskCompleted(req *executor.ExecutionRequest,
 
 	// ======= 重试逻辑 =======
 	h.es.HandleTaskRetry(task, req, result.Success, result.Status, result.ExitCode)
+
+	// ======= 通知触发 =======
+	if h.es.notifier != nil {
+		go func() {
+			var eventType string
+			switch result.Status {
+			case constant.TaskStatusSuccess:
+				eventType = constant.EventTaskSuccess
+			case constant.TaskStatusFailed:
+				eventType = constant.EventTaskFailed
+			case constant.TaskStatusTimeout:
+				eventType = constant.EventTaskTimeout
+			}
+			if eventType != "" {
+				h.es.notifier.TriggerEvent(constant.BindingTypeTask, eventType, task.ID, map[string]interface{}{
+					"task_id":   task.ID,
+					"task_name": task.Name,
+					"status":    result.Status,
+					"duration":  result.Duration,
+				})
+			}
+		}()
+	}
 }
 
 func (h *ServerSchedulerHandler) OnTaskFailed(req *executor.ExecutionRequest, err error) {
@@ -305,6 +336,21 @@ func (h *ServerSchedulerHandler) OnTaskFailed(req *executor.ExecutionRequest, er
 
 	// ======= 重试逻辑 =======
 	h.es.HandleTaskRetry(task, req, false, constant.TaskStatusFailed, 1)
+
+	// ======= 通知触发 =======
+	if h.es.notifier != nil {
+		go func() {
+			taskName := "未知任务"
+			if task != nil {
+				taskName = task.Name
+			}
+			h.es.notifier.TriggerEvent(constant.BindingTypeTask, constant.EventTaskFailed, taskID, map[string]interface{}{
+				"task_id":   taskID,
+				"task_name": taskName,
+				"error":     err.Error(),
+			})
+		}()
+	}
 }
 
 // HandleTaskRetry 处理任务失败重试逻辑

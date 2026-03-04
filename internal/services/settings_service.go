@@ -89,6 +89,11 @@ func (s *SettingsService) Set(section, key, value string) error {
 	return database.DB.Model(&setting).Update("value", value).Error
 }
 
+// Delete 删除单个设置
+func (s *SettingsService) Delete(section, key string) error {
+	return database.DB.Where("section = ? AND `key` = ?", section, key).Delete(&models.Setting{}).Error
+}
+
 // GetSection 获取整个 section 的设置
 func (s *SettingsService) GetSection(section string) map[string]string {
 	if section == constant.SectionSite {

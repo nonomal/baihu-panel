@@ -47,6 +47,7 @@ const router = createRouter({
         { path: 'history', name: 'history', component: () => import('@/views/history/History.vue') },
         { path: 'loginlogs', name: 'loginlogs', component: () => import('@/views/loginlogs/LoginLogs.vue') },
         { path: 'terminal', name: 'terminal', component: () => import('@/views/terminal/Terminal.vue') },
+        { path: 'notify', name: 'notify', component: () => import('@/views/notify/Notify.vue') },
         { path: 'settings', name: 'settings', component: () => import('@/views/settings/Settings.vue') }
       ]
     }

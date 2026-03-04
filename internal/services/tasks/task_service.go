@@ -124,6 +124,9 @@ func (ts *TaskService) UpdateTask(id string, name, command, schedule string, tim
 }
 
 func (ts *TaskService) DeleteTask(id string) bool {
+	// 同时删除关联的通知推送设置
+	database.DB.Where("type = ? AND data_id = ?", constant.BindingTypeTask, id).Delete(&models.NotifyBinding{})
+	
 	result := database.DB.Where("id = ?", id).Delete(&models.Task{})
 	return result.RowsAffected > 0
 }

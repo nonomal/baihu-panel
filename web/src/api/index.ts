@@ -131,6 +131,9 @@ export const api = {
       request('/settings/scheduler', { method: 'PUT', body: JSON.stringify(data) }),
     getPaths: () => request<{ scripts_dir: string }>('/settings/paths'),
     getAbout: () => request<AboutInfo>('/settings/about'),
+    get: (section: string, key: string) => request<string>(`/settings/${section}/${key}`),
+    generateToken: (section: string, key: string) =>
+      request<string>(`/settings/${section}/${key}/generate`, { method: 'POST' }),
     getLoginLogs: (params?: { page?: number; page_size?: number; username?: string }) => {
       const query = new URLSearchParams()
       if (params?.page) query.set('page', String(params.page))
@@ -261,6 +264,22 @@ export const api = {
   },
   terminal: {
     cmds: () => request<{ name: string, description: string }[]>('/terminal/cmds')
+  },
+  notify: {
+    getTypes: () => request<{ channel_types: ChannelType[]; event_types: EventType[] }>('/notify/types'),
+    getChannels: () => request<NotifyChannel[]>('/notify/channels'),
+    saveChannel: (data: Partial<NotifyChannel>) =>
+      request('/notify/channels', { method: 'POST', body: JSON.stringify(data) }),
+    deleteChannel: (id: string) => request('/notify/channels/' + id, { method: 'DELETE' }),
+    testChannel: (data: Partial<NotifyChannel>) =>
+      request<NotifyResult>('/notify/channels/test', { method: 'POST', body: JSON.stringify(data) }),
+
+    getBindings: () => request<NotifyBinding[]>('/notify/bindings'),
+    saveBinding: (data: Partial<NotifyBinding>) =>
+      request<NotifyBinding>('/notify/bindings', { method: 'POST', body: JSON.stringify(data) }),
+    deleteBinding: (id: string) => request('/notify/bindings/' + id, { method: 'DELETE' }),
+    send: (data: { channel_id: string; title: string; text: string }) =>
+      request<NotifyResult>('/notify/send', { method: 'POST', body: JSON.stringify(data) })
   }
 }
 
@@ -496,3 +515,39 @@ export interface MiseLanguage {
   install_path?: string
   installed_at?: string  // 安装日期
 }
+
+export interface ChannelType {
+  type: string
+  label: string
+}
+
+export interface EventType {
+  type: string
+  label: string
+  binding_type?: string
+}
+
+export interface NotifyChannel {
+  id: string
+  name: string
+  type: string
+  enabled: boolean
+  config: Record<string, string>
+}
+
+export interface NotifyBinding {
+  id: string
+  type: string
+  event: string
+  way_id: string
+  data_id: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface NotifyResult {
+  success: boolean
+  error?: string
+}
+
+

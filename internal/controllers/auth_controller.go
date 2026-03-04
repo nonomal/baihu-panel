@@ -1,6 +1,7 @@
 package controllers
 
 import (
+
 	"strconv"
 	"sync"
 	"time"
@@ -54,6 +55,10 @@ func (ac *AuthController) Login(c *gin.Context) {
 		attempt := val.(*loginAttempt)
 		if attempt.Count >= 5 && time.Since(attempt.LastAttempt) < time.Minute {
 			ac.loginLogService.Create(req.Username, ip, userAgent, "failed", "尝试次数过多，请一分钟后再试")
+			go services.NewNotificationService().TriggerEvent(constant.BindingTypeSystem, constant.EventBruteForceLogin, "", map[string]interface{}{
+				"ip":       ip,
+				"username": req.Username,
+			})
 			utils.TooManyRequests(c, "尝试次数过多，请一分钟后再试")
 			return
 		}
@@ -101,6 +106,11 @@ func (ac *AuthController) Login(c *gin.Context) {
 
 	// 记录登录成功日志
 	ac.loginLogService.Create(req.Username, ip, userAgent, "success", "登录成功")
+
+	go services.NewNotificationService().TriggerEvent(constant.BindingTypeSystem, constant.EventUserLogin, "", map[string]interface{}{
+		"ip":       ip,
+		"username": req.Username,
+	})
 
 	utils.Success(c, gin.H{
 		"user": user.Username,
