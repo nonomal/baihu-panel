@@ -64,22 +64,24 @@ func Setup(c *Controllers) *gin.Engine {
 		root = router.Group("")
 	}
 
-	// 静态资源服务（Vue SPA），带缓存头部
 	staticFS := static.GetFS()
-	assetsGroup := root.Group("/assets")
-	assetsGroup.Use(cacheControl("public, max-age=31536000, immutable")) // 带哈希的资源缓存1年
-	assetsGroup.StaticFS("/", http.FS(mustSubFS(staticFS, "assets")))
+	if staticFS != nil {
+		// 静态资源服务（Vue SPA），带缓存头部
+		assetsGroup := root.Group("/assets")
+		assetsGroup.Use(cacheControl("public, max-age=31536000, immutable")) // 带哈希的资源缓存
+		assetsGroup.StaticFS("/", http.FS(mustSubFS(staticFS, "assets")))
 
-	// logo.svg 短缓存实现
-	root.GET("/logo.svg", func(ctx *gin.Context) {
-		data, err := static.ReadFile("logo.svg")
-		if err != nil {
-			ctx.Status(404)
-			return
-		}
-		ctx.Header("Cache-Control", "public, max-age=86400") // 缓存1天
-		ctx.Data(200, "image/svg+xml", data)
-	})
+		// logo.svg 短缓存实现
+		root.GET("/logo.svg", func(ctx *gin.Context) {
+			data, err := static.ReadFile("logo.svg")
+			if err != nil {
+				ctx.Status(404)
+				return
+			}
+			ctx.Header("Cache-Control", "public, max-age=86400") // 缓存1天
+			ctx.Data(200, "image/svg+xml", data)
+		})
+	}
 
 	// API 路由组
 	api := root.Group("/api/v1")

@@ -8,6 +8,8 @@ VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date '+%Y/%m/%d %H:%M:%S')
 LDFLAGS=-ldflags="-s -w -X 'github.com/engigu/baihu-panel/internal/constant.Version=$(VERSION)' -X 'github.com/engigu/baihu-panel/internal/constant.BuildTime=$(BUILD_TIME)'"
 
+TAGS_WEB=-tags web
+
 DEV_UID ?= $(shell id -u 2>/dev/null || echo 1000)
 DEV_GID ?= $(shell id -g 2>/dev/null || echo 1000)
 export DEV_UID
@@ -19,16 +21,21 @@ all: build
 # Build frontend
 build-web:
 	cd web && npm ci && npm run build
-	rm -rf internal/static/dist
-	cp -r web/dist internal/static/dist
 
 # Build the application (requires frontend to be built first)
 build:
 	@mkdir -p bin
 	CGO_ENABLED=0 $(GOBUILD) $(LDFLAGS) -o $(BINARY) main.go
 
-# Build all (frontend + backend)
-build-all: build-web build
+# Build release version (Frontend + Backend with embedded assets)
+release: build-web
+	@mkdir -p bin
+	rm -rf internal/static/dist
+	cp -r web/dist internal/static/dist
+	CGO_ENABLED=0 $(GOBUILD) $(LDFLAGS) $(TAGS_WEB) -o $(BINARY) main.go
+
+# Alias for backward compatibility
+build-all: release
 
 # Build agent for all platforms
 build-agent: build-agent-linux-amd64 build-agent-linux-arm64 build-agent-windows-amd64 build-agent-darwin-amd64 build-agent-darwin-arm64
@@ -67,14 +74,11 @@ clean:
 	$(GOCLEAN)
 	rm -rf bin/
 	rm -rf internal/static/dist
-	mkdir -p internal/static/dist
-	touch internal/static/dist/.gitkeep
 	rm -rf web/dist
-	mkdir -p web/dist
-	touch web/dist/.gitkeep
 
 # Clean everything: local artifacts and Docker development environment (including volumes)
 clean-all: clean docker-dev-clean
+	rm -rf web/node_modules
 	@echo "All local artifacts and Docker dev caches have been completely wiped."
 
 # Run the application
@@ -143,8 +147,10 @@ docker-dev-clean:
 # Help
 help:
 	@echo "Available targets:"
-	@echo "  all              - Build the application (default)"
-	@echo "  build            - Build the application"
+	@echo "  all              - Build backend only (default)"
+	@echo "  build            - Build backend binary (no UI embedded)"
+	@echo "  release          - Build full release binary (with UI embedded)"
+	@echo "  build-web        - Build frontend assets only"
 	@echo "  build-agent      - Build agent packages (tar.gz) for all platforms"
 	@echo "  clean            - Clean built files"
 	@echo "  clean-all        - Clean local files and Docker dev environment (including volumes)"
