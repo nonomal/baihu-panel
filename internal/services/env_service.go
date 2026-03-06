@@ -118,20 +118,44 @@ func (es *EnvService) DeleteEnvVar(id string, force bool) (bool, []models.Task) 
 }
 
 // GetEnvVarsByIDs 根据逗号分隔的ID字符串获取环境变量列表，返回 NAME=VALUE 格式
+// 如果存在重名变量，会类似青龙面板一样使用 & 拼接
 func (es *EnvService) GetEnvVarsByIDs(envIDs string) []string {
 	if envIDs == "" {
 		return nil
 	}
 
-	var envVars []string
 	ids := splitEnvIDs(envIDs)
+	type mergedEnv struct {
+		name   string
+		values []string
+	}
+	var mergedList []mergedEnv
+	nameToIndex := make(map[string]int)
+
 	for _, id := range ids {
 		env := es.GetEnvVarByID(id)
-		if env != nil {
-			envVars = append(envVars, env.Name+"="+env.Value)
+		if env == nil {
+			continue
+		}
+
+		if idx, ok := nameToIndex[env.Name]; ok {
+			mergedList[idx].values = append(mergedList[idx].values, env.Value)
+		} else {
+			nameToIndex[env.Name] = len(mergedList)
+			mergedList = append(mergedList, mergedEnv{
+				name:   env.Name,
+				values: []string{env.Value},
+			})
 		}
 	}
-	return envVars
+
+	var result []string
+	for _, item := range mergedList {
+		// 多个值使用 & 拼接
+		val := strings.Join(item.values, "&")
+		result = append(result, item.name+"="+val)
+	}
+	return result
 }
 
 // splitEnvIDs 解析逗号分隔的ID字符串

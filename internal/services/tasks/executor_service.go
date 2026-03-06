@@ -936,19 +936,15 @@ func (es *ExecutorService) BuildRepoCommand(task *models.Task) (string, string) 
 	return exePath + " " + strings.Join(args, " "), filepath.Dir(exePath)
 }
 
-// loadEnvVars 加载环境变量
+// loadEnvVars 加载环境变量（支持重名合并）
 func (es *ExecutorService) loadEnvVars(envIDs string) []string {
 	if envIDs == "" {
 		return nil
 	}
 
-	var envVars []models.EnvironmentVariable
-	ids := strings.Split(envIDs, ",")
-	database.DB.Where("id IN ?", ids).Find(&envVars)
-
-	result := make([]string, 0, len(envVars))
-	for _, env := range envVars {
-		result = append(result, fmt.Sprintf("%s=%s", env.Name, env.Value))
+	if es.envService != nil {
+		return es.envService.GetEnvVarsByIDs(envIDs)
 	}
-	return result
+
+	return nil
 }
