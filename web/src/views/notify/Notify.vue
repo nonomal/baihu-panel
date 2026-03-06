@@ -113,6 +113,15 @@ const channelConfigFields: Record<string, { key: string; label: string; required
     { key: 'phone_number', label: '手机号码', required: true },
     { key: 'template_code', label: '短信模板 CODE', required: true },
   ],
+  PushPlus: [
+    { key: 'token', label: 'Token', required: true, placeholder: 'PushPlus Token' },
+    { key: 'topic', label: '群组编码', required: false, placeholder: '可选，一对多推送' },
+    { key: 'template', label: '推送模板', required: false, placeholder: 'html, txt, json, markdown' },
+    { key: 'channel', label: '推送渠道', required: false, placeholder: 'wechat, dingding, feishu, mail等' },
+    { key: 'webhook', label: 'Webhook', required: false },
+    { key: 'callback_url', label: '回调地址', required: false },
+    { key: 'to', label: '好友令牌', required: false },
+  ],
 }
 
 // 加载数据

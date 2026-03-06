@@ -124,3 +124,10 @@ func ToLoginLogVOListFromModels(logs []models.LoginLog) []*LoginLogVO {
 	}
 	return vos
 }
+
+// TokenConfig Token 配置结构体
+type TokenConfig struct {
+	Enabled  bool   `json:"enabled"`
+	Token    string `json:"token"`
+	ExpireAt string `json:"expire_at"`
+}

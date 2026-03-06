@@ -7,9 +7,22 @@ import { api, type SiteSettings } from '@/api'
 import { toast } from 'vue-sonner'
 import { useSiteSettings } from '@/composables/useSiteSettings'
 import { Badge } from '@/components/ui/badge'
-import { RefreshCw, Copy } from 'lucide-vue-next'
+import { Switch } from '@/components/ui/switch'
+import { RefreshCw, Copy, AlertTriangle, ExternalLink } from 'lucide-vue-next'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 const { refreshSettings } = useSiteSettings()
+
+const baseUrl = (window as any).__BASE_URL__ || ''
 
 const form = ref<SiteSettings>({
   title: '',
@@ -17,10 +30,15 @@ const form = ref<SiteSettings>({
   icon: '',
   page_size: '10',
   cookie_days: '7',
+  openapi_enabled: false,
+  openapi_token: '',
+  openapi_token_expire: '',
   api_token: '',
   api_token_expire: ''
 })
 const loading = ref(false)
+const showOpenapiConfirmDialog = ref(false)
+const showApiConfirmDialog = ref(false)
 
 const iconPreview = computed(() => {
   if (!form.value.icon) return ''
@@ -34,8 +52,11 @@ const iconPreview = computed(() => {
 async function loadSettings() {
   try {
     const res = await api.settings.getSite()
-    form.value = res
-  } catch {}
+    form.value = {
+      ...res,
+      openapi_enabled: res.openapi_enabled === true || (res as any).openapi_enabled === 'true'
+    }
+  } catch { }
 }
 
 async function saveSettings() {
@@ -55,11 +76,27 @@ async function saveSettings() {
   }
 }
 
+async function generateOpenapiToken() {
+  try {
+    const res = await api.settings.generateOpenapiToken()
+    form.value.openapi_token = res.token
+
+    // 如果没有设置过期时间，默认给一年后
+    if (!form.value.openapi_token_expire) {
+      const d = new Date()
+      d.setFullYear(d.getFullYear() + 1)
+      form.value.openapi_token_expire = d.toISOString().split('T')[0]
+    }
+  } catch {
+    toast.error('生成 Token 失败')
+  }
+}
+
 async function generateToken() {
   try {
     const res = await api.settings.generateApiToken()
     form.value.api_token = res.token
-    
+
     // 如果没有设置过期时间，默认给一年后
     if (!form.value.api_token_expire) {
       const d = new Date()
@@ -68,6 +105,16 @@ async function generateToken() {
     }
   } catch {
     toast.error('生成 Token 失败')
+  }
+}
+
+async function copyOpenapiToken() {
+  if (!form.value.openapi_token) return
+  try {
+    await navigator.clipboard.writeText(form.value.openapi_token)
+    toast.success('Token 已复制到剪贴板')
+  } catch {
+    toast.error('复制失败，请手动复制')
   }
 }
 
@@ -98,7 +145,9 @@ onMounted(loadSettings)
       <Label class="sm:text-right">站点图标</Label>
       <div class="sm:col-span-3 flex items-center gap-2">
         <Input v-model="form.icon" placeholder="<svg>...</svg>" class="flex-1 font-mono text-xs" />
-        <div v-if="iconPreview" class="p-1.5 border rounded bg-white dark:bg-white w-8 h-8 flex items-center justify-center shrink-0 [&>svg]:w-5 [&>svg]:h-5" v-html="iconPreview" />
+        <div v-if="iconPreview"
+          class="p-1.5 border rounded bg-white dark:bg-white w-8 h-8 flex items-center justify-center shrink-0 [&>svg]:w-5 [&>svg]:h-5"
+          v-html="iconPreview" />
       </div>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
@@ -114,19 +163,69 @@ onMounted(loadSettings)
         </div>
       </div>
     </div>
-    
+
+    <div class="pt-6 border-t mt-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <h3 class="text-lg font-medium text-foreground">OpenAPI Token</h3>
+          <Badge variant="secondary"
+            class="font-normal text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">推荐方式</Badge>
+        </div>
+        <div class="flex items-center gap-4">
+          <a :href="baseUrl + '/openapi/index.html'" target="_blank"
+            class="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+            查看接口文档
+            <ExternalLink class="w-3 h-3" />
+          </a>
+          <div class="flex items-center gap-2">
+            <Switch v-model="form.openapi_enabled" id="openapi-enabled" />
+            <Label for="openapi-enabled" class="text-xs cursor-pointer">开启鉴权</Label>
+          </div>
+        </div>
+      </div>
+      <p class="text-sm text-muted-foreground mb-4">开启全局 OpenAPI 直接访问能力，配置后可通过请求头 <code
+          class="bg-muted px-1.5 py-0.5 rounded text-xs select-all font-sans">Authorization: Bearer &lt;在此生成的Token&gt;</code>
+        无需登录直接调用系统的所有接口，请妥善保管并设置合理的有效期。</p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4 mb-4">
+        <Label class="sm:text-right text-muted-foreground">Token 密钥</Label>
+        <div class="sm:col-span-3 flex w-full max-w-sm items-center space-x-2">
+          <Input v-model="form.openapi_token" placeholder="点击右侧按钮生成 32 位随机 Token" class="text-sm" />
+          <Button type="button" variant="outline" size="icon" @click="showOpenapiConfirmDialog = true" title="随机生成">
+            <RefreshCw class="w-4 h-4" />
+          </Button>
+          <Button type="button" variant="outline" size="icon" @click="copyOpenapiToken" title="复制"
+            :disabled="!form.openapi_token">
+            <Copy class="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+        <Label class="sm:text-right text-muted-foreground">截止有效期</Label>
+        <div class="sm:col-span-3">
+          <Input v-model="form.openapi_token_expire" type="date" class="w-full max-w-xs dark:[color-scheme:dark]" />
+          <div class="text-xs text-muted-foreground mt-1.5 ml-1">超过此日期后该 Token 将失效，置空代表该特性完全关闭。</div>
+        </div>
+      </div>
+    </div>
+
     <div class="pt-6 border-t mt-6">
       <div class="flex items-center gap-2 mb-4">
         <h3 class="text-lg font-medium text-foreground">API Token</h3>
-        <Badge variant="secondary" class="font-normal text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">实验特性，可能变更</Badge>
+        <Badge variant="secondary"
+          class="font-normal text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+          实验特性，可能变更，将会在后期下线</Badge>
       </div>
-      <p class="text-sm text-muted-foreground mb-4">开启全局 API 直接访问能力，配置后可通过请求头 <code class="bg-muted px-1.5 py-0.5 rounded text-xs select-all font-sans">X-API-Token: &lt;在此生成的Token&gt;</code> 无需登录直接调用系统的所有接口，请妥善保管并设置合理的有效期。</p>
-      
+      <p class="text-sm text-muted-foreground mb-4">开启全局 API 直接访问能力，配置后可通过请求头 <code
+          class="bg-muted px-1.5 py-0.5 rounded text-xs select-all font-sans">X-API-Token: &lt;在此生成的Token&gt;</code>
+        无需登录直接调用系统的所有接口，请妥善保管并设置合理的有效期。</p>
+
       <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4 mb-4">
         <Label class="sm:text-right text-muted-foreground">Token 密钥</Label>
         <div class="sm:col-span-3 flex w-full max-w-sm items-center space-x-2">
           <Input v-model="form.api_token" placeholder="点击右侧按钮生成 32 位随机 Token" class="text-sm" />
-          <Button type="button" variant="outline" size="icon" @click="generateToken" title="随机生成">
+          <Button type="button" variant="outline" size="icon" @click="showApiConfirmDialog = true" title="随机生成">
             <RefreshCw class="w-4 h-4" />
           </Button>
           <Button type="button" variant="outline" size="icon" @click="copyToken" title="复制" :disabled="!form.api_token">
@@ -148,5 +247,43 @@ onMounted(loadSettings)
         {{ loading ? '保存中...' : '保存设置' }}
       </Button>
     </div>
+
+    <!-- OpenAPI Token 重新生成确认弹窗 -->
+    <AlertDialog :open="showOpenapiConfirmDialog" @update:open="showOpenapiConfirmDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle class="flex items-center gap-2">
+            <AlertTriangle class="w-5 h-5 text-amber-500" />
+            确认重新生成 Token？
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            此操作将立刻覆盖当前配置框内的 OpenAPI Token，原有的 Token 在点击【保存设置】后将会永久失效，导致所有使用旧 Token 的外部系统无法访问。确认要继续吗？
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction @click="generateOpenapiToken">重新生成</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <!-- API Token 重新生成确认弹窗 -->
+    <AlertDialog :open="showApiConfirmDialog" @update:open="showApiConfirmDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle class="flex items-center gap-2">
+            <AlertTriangle class="w-5 h-5 text-amber-500" />
+            确认重新生成 Token？
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            此操作将立刻覆盖当前配置框内的旧版 API Token，原有的 Token 在点击【保存设置】后将会永久失效。建议逐步迁移到 OpenAPI Token 后直接将此特性置空关闭。确认要继续吗？
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction @click="generateToken">重新生成</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>

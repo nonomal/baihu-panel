@@ -251,7 +251,8 @@ onMounted(loadEnvVars)
 
               <div class="space-y-2">
                 <div class="flex items-center justify-between px-1">
-                  <p class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">关联任务 ({{ associatedTasks.length }})</p>
+                  <p class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">关联任务 ({{
+                    associatedTasks.length }})</p>
                 </div>
                 <div class="bg-muted/30 rounded-lg p-1.5 max-h-40 overflow-y-auto space-y-1 border border-border/40">
                   <div v-for="task in associatedTasks" :key="task.id"
@@ -260,7 +261,8 @@ onMounted(loadEnvVars)
                       <Terminal class="h-3 w-3 text-primary/70" />
                       <span class="font-medium truncate">{{ task.name }}</span>
                     </div>
-                    <code class="text-[10px] text-muted-foreground/70 font-mono bg-muted/50 px-1.5 py-0.5 rounded">{{ task.id }}</code>
+                    <code
+                      class="text-[10px] text-muted-foreground/70 font-mono bg-muted/50 px-1.5 py-0.5 rounded">{{ task.id }}</code>
                   </div>
                 </div>
               </div>

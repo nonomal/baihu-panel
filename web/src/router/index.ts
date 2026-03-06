@@ -50,6 +50,15 @@ const router = createRouter({
         { path: 'notify', name: 'notify', component: () => import('@/views/notify/Notify.vue') },
         { path: 'settings', name: 'settings', component: () => import('@/views/settings/Settings.vue') }
       ]
+    },
+    {
+      path: '/404',
+      name: '404',
+      component: () => import('@/views/error/NotFound.vue')
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/404'
     }
   ]
 })

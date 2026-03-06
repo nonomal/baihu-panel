@@ -37,12 +37,13 @@ const (
 	SectionNotify    = "notify"
 
 	// Site Settings Key 常量
-	KeyTitle      = "title"
-	KeySubtitle   = "subtitle"
-	KeyIcon       = "icon"
-	KeyPageSize       = "page_size"
-	KeyCookieDays     = "cookie_days"
-	KeyApiToken       = "api_token"
+	KeyTitle        = "title"
+	KeySubtitle     = "subtitle"
+	KeyIcon         = "icon"
+	KeyPageSize     = "page_size"
+	KeyCookieDays   = "cookie_days"
+	KeyApiToken     = "api_token"
+	KeyOpenapiToken = "openapi_token"
 
 	// Security Settings Key 常量
 	KeySecret = "secret"
@@ -65,9 +66,9 @@ const (
 	BindingTypeTask   = "task"
 
 	// 系统事件类型
-	EventUserLogin        = "user_login"
-	EventBruteForceLogin  = "brute_force_login"
-	EventPasswordChanged  = "password_changed"
+	EventUserLogin       = "user_login"
+	EventBruteForceLogin = "brute_force_login"
+	EventPasswordChanged = "password_changed"
 
 	// 任务事件类型
 	EventTaskSuccess = "task_success"

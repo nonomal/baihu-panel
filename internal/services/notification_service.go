@@ -50,6 +50,7 @@ var SupportedChannelTypes = []map[string]string{
 	{"type": messenger.ChannelPushMe, "label": "PushMe"},
 	// {"type": messenger.ChannelWeChatOFAccount, "label": "微信公众号"},
 	{"type": messenger.ChannelAliyunSMS, "label": "阿里云短信"},
+	{"type": messenger.ChannelPushPlus, "label": "PushPlus"},
 }
 
 // SupportedEvents 支持的事件类型

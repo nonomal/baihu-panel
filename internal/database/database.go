@@ -36,7 +36,7 @@ func Init(cfg *Config) error {
 
 	switch cfg.Type {
 	case "sqlite":
-		dialector = sqlite.Open(cfg.Path)
+		dialector = sqlite.Open(cfg.Path + "?_busy_timeout=5000")
 	case "mysql":
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Asia%%2FShanghai",
 			cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBName)
@@ -60,6 +60,17 @@ func Init(cfg *Config) error {
 	}
 
 	logger.Infof("[Database] 已连接 %s 数据库 (时区: Asia/Shanghai)", cfg.Type)
+
+	// SQLite 特殊优化：开启 WAL 模式，提升并发性能
+	if cfg.Type == "sqlite" {
+		sqlDB, _ := DB.DB()
+		if sqlDB != nil {
+			sqlDB.SetMaxOpenConns(1) // SQLite 只允许单写连接
+			sqlDB.Exec("PRAGMA journal_mode=WAL")
+			sqlDB.Exec("PRAGMA synchronous=NORMAL")
+		}
+	}
+
 	return nil
 }
 

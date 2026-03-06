@@ -116,12 +116,8 @@ onMounted(loadLogs)
       <div class="flex items-center gap-2">
         <div class="relative flex-1 sm:flex-none">
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            v-model="filterUsername"
-            placeholder="搜索用户名..."
-            class="h-9 pl-9 w-full sm:w-56 text-sm"
-            @input="handleSearch"
-          />
+          <Input v-model="filterUsername" placeholder="搜索用户名..." class="h-9 pl-9 w-full sm:w-56 text-sm"
+            @input="handleSearch" />
         </div>
         <Button variant="outline" size="icon" class="h-9 w-9 shrink-0" @click="loadLogs" :disabled="loading">
           <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': loading }" />
@@ -131,7 +127,8 @@ onMounted(loadLogs)
 
     <div class="rounded-lg border bg-card overflow-x-auto">
       <!-- 表头 -->
-      <div class="flex items-center gap-2 sm:gap-4 px-3 sm:px-4 py-2 border-b bg-muted/50 text-xs sm:text-sm text-muted-foreground font-medium sm:min-w-[500px]">
+      <div
+        class="flex items-center gap-2 sm:gap-4 px-3 sm:px-4 py-2 border-b bg-muted/50 text-xs sm:text-sm text-muted-foreground font-medium sm:min-w-[500px]">
         <span class="w-16 sm:w-24 shrink-0">用户名</span>
         <span class="w-20 sm:w-32 shrink-0">IP 地址</span>
         <span class="w-10 sm:w-16 shrink-0 text-center">状态</span>
@@ -143,16 +140,12 @@ onMounted(loadLogs)
         <div v-if="logs.length === 0" class="text-sm text-muted-foreground text-center py-8">
           暂无登录日志
         </div>
-        <div
-          v-for="log in logs"
-          :key="log.id"
-          class="flex items-center gap-2 sm:gap-4 px-3 sm:px-4 py-2 hover:bg-muted/50 transition-colors"
-        >
+        <div v-for="log in logs" :key="log.id"
+          class="flex items-center gap-2 sm:gap-4 px-3 sm:px-4 py-2 hover:bg-muted/50 transition-colors">
           <span class="w-16 sm:w-24 shrink-0 font-medium text-xs sm:text-sm truncate">{{ log.username }}</span>
-          <code 
+          <code
             class="w-20 sm:w-32 shrink-0 text-xs text-muted-foreground bg-muted px-1 sm:px-2 py-0.5 sm:py-1 rounded truncate cursor-pointer hover:bg-muted/80 transition-colors"
-            @click="showIpInfo(log.ip)"
-          >{{ log.ip }}</code>
+            @click="showIpInfo(log.ip)">{{ log.ip }}</code>
           <span class="w-10 sm:w-16 shrink-0 flex justify-center">
             <span :class="['h-2 w-2 rounded-full', log.status === 'success' ? 'bg-green-500' : 'bg-red-500']"></span>
           </span>
