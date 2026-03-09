@@ -108,23 +108,12 @@ func (sc *SettingsController) GetSiteSettings(c *gin.Context) {
 	}
 
 	// 获取日志清理配置
-	logRetentionJson := sc.settingsService.Get(constant.SectionSystem, constant.KeyLogRetention)
-	if logRetentionJson != "" {
-		var configs map[string]struct {
-			Days     int `json:"days"`
-			MaxCount int `json:"max_count"`
-		}
-		if err := json.Unmarshal([]byte(logRetentionJson), &configs); err == nil {
-			if cfg, ok := configs[constant.LogCategorySystemNotice]; ok {
-				settings["system_notice_days"] = fmt.Sprintf("%d", cfg.Days)
-				settings["system_notice_max_count"] = fmt.Sprintf("%d", cfg.MaxCount)
-			}
-			if cfg, ok := configs[constant.LogCategoryPushLog]; ok {
-				settings["push_log_days"] = fmt.Sprintf("%d", cfg.Days)
-				settings["push_log_max_count"] = fmt.Sprintf("%d", cfg.MaxCount)
-			}
-		}
-	}
+	settings["system_notice_days"] = sc.settingsService.Get(constant.SectionSystem, constant.KeySystemNoticeDays)
+	settings["system_notice_max_count"] = sc.settingsService.Get(constant.SectionSystem, constant.KeySystemNoticeMaxCount)
+	settings["push_log_days"] = sc.settingsService.Get(constant.SectionSystem, constant.KeyPushLogDays)
+	settings["push_log_max_count"] = sc.settingsService.Get(constant.SectionSystem, constant.KeyPushLogMaxCount)
+	settings["login_log_days"] = sc.settingsService.Get(constant.SectionSystem, constant.KeyLoginLogDays)
+	settings["login_log_max_count"] = sc.settingsService.Get(constant.SectionSystem, constant.KeyLoginLogMaxCount)
 
 	utils.Success(c, settings)
 }
@@ -156,6 +145,8 @@ func (sc *SettingsController) UpdateSiteSettings(c *gin.Context) {
 		SystemNoticeMaxCount int    `json:"system_notice_max_count"`
 		PushLogDays          int    `json:"push_log_days"`
 		PushLogMaxCount      int    `json:"push_log_max_count"`
+		LoginLogDays         int    `json:"login_log_days"`
+		LoginLogMaxCount     int    `json:"login_log_max_count"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -190,19 +181,12 @@ func (sc *SettingsController) UpdateSiteSettings(c *gin.Context) {
 	}
 
 	// 保存日志清理配置
-	logRetentionConfig := map[string]interface{}{
-		constant.LogCategorySystemNotice: map[string]int{
-			"days":      req.SystemNoticeDays,
-			"max_count": req.SystemNoticeMaxCount,
-		},
-		constant.LogCategoryPushLog: map[string]int{
-			"days":      req.PushLogDays,
-			"max_count": req.PushLogMaxCount,
-		},
-	}
-	if logRetentionJson, err := json.Marshal(logRetentionConfig); err == nil {
-		sc.settingsService.Set(constant.SectionSystem, constant.KeyLogRetention, string(logRetentionJson))
-	}
+	sc.settingsService.Set(constant.SectionSystem, constant.KeySystemNoticeDays, fmt.Sprintf("%d", req.SystemNoticeDays))
+	sc.settingsService.Set(constant.SectionSystem, constant.KeySystemNoticeMaxCount, fmt.Sprintf("%d", req.SystemNoticeMaxCount))
+	sc.settingsService.Set(constant.SectionSystem, constant.KeyPushLogDays, fmt.Sprintf("%d", req.PushLogDays))
+	sc.settingsService.Set(constant.SectionSystem, constant.KeyPushLogMaxCount, fmt.Sprintf("%d", req.PushLogMaxCount))
+	sc.settingsService.Set(constant.SectionSystem, constant.KeyLoginLogDays, fmt.Sprintf("%d", req.LoginLogDays))
+	sc.settingsService.Set(constant.SectionSystem, constant.KeyLoginLogMaxCount, fmt.Sprintf("%d", req.LoginLogMaxCount))
 
 	utils.SuccessMsg(c, "保存成功")
 }

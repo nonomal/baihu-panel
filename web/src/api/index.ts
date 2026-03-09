@@ -454,6 +454,8 @@ export interface SiteSettings {
   system_notice_max_count?: string
   push_log_days?: string
   push_log_max_count?: string
+  login_log_days?: string
+  login_log_max_count?: string
 }
 
 export interface SchedulerSettings {

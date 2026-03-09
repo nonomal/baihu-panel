@@ -8,7 +8,7 @@ import { toast } from 'vue-sonner'
 import { useSiteSettings } from '@/composables/useSiteSettings'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { RefreshCw, Copy, AlertTriangle, ExternalLink } from 'lucide-vue-next'
+import { RefreshCw, Copy, AlertTriangle, ExternalLink, Info, Clock } from 'lucide-vue-next'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,7 +36,9 @@ const form = ref<SiteSettings>({
   system_notice_days: '30',
   system_notice_max_count: '500',
   push_log_days: '15',
-  push_log_max_count: '5000'
+  push_log_max_count: '5000',
+  login_log_days: '30',
+  login_log_max_count: '1000'
 })
 const loading = ref(false)
 const showOpenapiConfirmDialog = ref(false)
@@ -70,7 +72,9 @@ async function saveSettings() {
       system_notice_days: String(form.value.system_notice_days || '30'),
       system_notice_max_count: String(form.value.system_notice_max_count || '500'),
       push_log_days: String(form.value.push_log_days || '15'),
-      push_log_max_count: String(form.value.push_log_max_count || '5000')
+      push_log_max_count: String(form.value.push_log_max_count || '5000'),
+      login_log_days: String(form.value.login_log_days || '30'),
+      login_log_max_count: String(form.value.login_log_max_count || '1000')
     })
     await refreshSettings()
     toast.success('保存成功')
@@ -148,35 +152,81 @@ onMounted(loadSettings)
     <div class="pt-6 border-t mt-6">
       <h3 class="text-lg font-medium text-foreground mb-4">日志清理策略</h3>
       <p class="text-sm text-muted-foreground mb-4">自动清理超过指定天数或数量的日志记录，保持系统性能。</p>
-      
-      <div class="space-y-4">
+
+      <div class="space-y-4 sm:space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
-          <Label class="sm:text-right text-muted-foreground">系统通知</Label>
-          <div class="sm:col-span-3 flex flex-wrap items-center gap-4">
-            <div class="flex items-center gap-2">
-              <Input v-model="form.system_notice_days" type="number" class="w-20" min="0" />
-              <span class="text-sm text-muted-foreground">天后清理</span>
+          <Label class="sm:text-right text-muted-foreground whitespace-nowrap">系统通知</Label>
+          <div class="sm:col-span-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div class="flex items-center gap-1.5">
+              <Input v-model="form.system_notice_days" type="number" class="w-16 h-8 text-xs sm:w-20 sm:h-9 sm:text-sm"
+                min="0" />
+              <span class="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">天清理</span>
             </div>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-muted-foreground">或保留最新</span>
-              <Input v-model="form.system_notice_max_count" type="number" class="w-24" min="0" />
-              <span class="text-sm text-muted-foreground">条</span>
+            <div class="flex items-center gap-1.5 border-l pl-3 border-border/50">
+              <span class="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">保留</span>
+              <Input v-model="form.system_notice_max_count" type="number"
+                class="w-20 h-8 text-xs sm:w-24 sm:h-9 sm:text-sm" min="0" />
+              <span class="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">条</span>
             </div>
           </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
-          <Label class="sm:text-right text-muted-foreground">推送日志</Label>
-          <div class="sm:col-span-3 flex flex-wrap items-center gap-4">
-            <div class="flex items-center gap-2">
-              <Input v-model="form.push_log_days" type="number" class="w-20" min="0" />
-              <span class="text-sm text-muted-foreground">天后清理</span>
+          <Label class="sm:text-right text-muted-foreground whitespace-nowrap">推送日志</Label>
+          <div class="sm:col-span-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div class="flex items-center gap-1.5">
+              <Input v-model="form.push_log_days" type="number" class="w-16 h-8 text-xs sm:w-20 sm:h-9 sm:text-sm"
+                min="0" />
+              <span class="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">天清理</span>
             </div>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-muted-foreground">或保留最新</span>
-              <Input v-model="form.push_log_max_count" type="number" class="w-24" min="0" />
-              <span class="text-sm text-muted-foreground">条</span>
+            <div class="flex items-center gap-1.5 border-l pl-3 border-border/50">
+              <span class="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">保留</span>
+              <Input v-model="form.push_log_max_count" type="number" class="w-20 h-8 text-xs sm:w-24 sm:h-9 sm:text-sm"
+                min="0" />
+              <span class="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">条</span>
             </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+          <Label class="sm:text-right text-muted-foreground whitespace-nowrap">登录日志</Label>
+          <div class="sm:col-span-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div class="flex items-center gap-1.5">
+              <Input v-model="form.login_log_days" type="number" class="w-16 h-8 text-xs sm:w-20 sm:h-9 sm:text-sm"
+                min="0" />
+              <span class="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">天清理</span>
+            </div>
+            <div class="flex items-center gap-1.5 border-l pl-3 border-border/50">
+              <span class="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">保留</span>
+              <Input v-model="form.login_log_max_count" type="number" class="w-20 h-8 text-xs sm:w-24 sm:h-9 sm:text-sm"
+                min="0" />
+              <span class="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">条</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 p-4 bg-muted/30 rounded-lg border border-dashed border-border flex flex-col gap-3">
+        <div class="flex items-start gap-3">
+          <div class="p-1.5 bg-blue-500/10 rounded-full">
+            <Info class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div class="space-y-1">
+            <p class="text-sm font-medium">双重维度限制</p>
+            <p class="text-xs text-muted-foreground leading-relaxed">
+              系统将根据天数和数量同时进行监测。满足任一条件即执行清理：超过天数的旧数据将被物理删除；若日志总数超过限制条数，则自动剔除最早产生的记录。
+            </p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="p-1.5 bg-amber-500/10 rounded-full">
+            <Clock class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div class="space-y-1">
+            <p class="text-sm font-medium">执行周期说明</p>
+            <p class="text-xs text-muted-foreground leading-relaxed">
+              清理任务在白虎面板后端服务启动时立即执行一次。在运行期间，系统将自动开启后台巡检计数器，每隔 24 小时进行周期性自动清理。
+            </p>
           </div>
         </div>
       </div>

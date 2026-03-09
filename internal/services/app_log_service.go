@@ -1,7 +1,6 @@
 package services
 
 import (
-	"encoding/json"
 	"time"
 
 	"fmt"
@@ -85,24 +84,30 @@ func (s *AppLogService) Clear(category string) error {
 }
 
 func (s *AppLogService) GetRetentionConfigs() map[string]LogRetentionConfig {
-	val := s.settingsService.Get(constant.SectionSystem, "log_retention")
-	var configs map[string]LogRetentionConfig
-	if val != "" {
-		_ = json.Unmarshal([]byte(val), &configs)
-	}
-	if configs == nil {
-		configs = map[string]LogRetentionConfig{
-			constant.LogCategorySystemNotice: {Days: 30, MaxCount: 500},
-			constant.LogCategoryPushLog:      {Days: 15, MaxCount: 5000},
-			constant.LogCategoryDefault:      {Days: 30, MaxCount: 10000},
-		}
+	configs := map[string]LogRetentionConfig{
+		constant.LogCategorySystemNotice: {
+			Days:     utils.ToInt(s.settingsService.Get(constant.SectionSystem, constant.KeySystemNoticeDays), 30),
+			MaxCount: utils.ToInt(s.settingsService.Get(constant.SectionSystem, constant.KeySystemNoticeMaxCount), 500),
+		},
+		constant.LogCategoryPushLog: {
+			Days:     utils.ToInt(s.settingsService.Get(constant.SectionSystem, constant.KeyPushLogDays), 15),
+			MaxCount: utils.ToInt(s.settingsService.Get(constant.SectionSystem, constant.KeyPushLogMaxCount), 5000),
+		},
+		constant.LogCategoryLoginLog: {
+			Days:     utils.ToInt(s.settingsService.Get(constant.SectionSystem, constant.KeyLoginLogDays), 30),
+			MaxCount: utils.ToInt(s.settingsService.Get(constant.SectionSystem, constant.KeyLoginLogMaxCount), 1000),
+		},
+		constant.LogCategoryDefault: {
+			Days:     30,
+			MaxCount: 10000,
+		},
 	}
 	return configs
 }
 
 func (s *AppLogService) CleanUp() {
 	configs := s.GetRetentionConfigs()
-	categories := []string{constant.LogCategorySystemNotice, constant.LogCategoryPushLog}
+	categories := []string{constant.LogCategorySystemNotice, constant.LogCategoryPushLog, constant.LogCategoryLoginLog}
 
 	for _, cat := range categories {
 		cfg, ok := configs[cat]

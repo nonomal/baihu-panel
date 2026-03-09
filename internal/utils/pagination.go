@@ -9,6 +9,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ToInt 解析字符串为整数，如果解析失败则返回默认值
+func ToInt(s string, defaultVal int) int {
+	val, err := strconv.Atoi(s)
+	if err != nil {
+		return defaultVal
+	}
+	return val
+}
+
 // ParseInt 解析字符串为整数
 func ParseInt(s string) (int, error) {
 	return strconv.Atoi(s)

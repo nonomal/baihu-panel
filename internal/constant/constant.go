@@ -48,8 +48,16 @@ const (
 	KeySecret = "secret"
 
 	// System Settings Key 常量
-	KeyInitialized  = "initialized"
-	KeyLogRetention = "log_retention"
+	KeyInitialized = "initialized"
+	// KeyLogRetention = "log_retention" // Deprecated
+
+	// Log Retention Keys
+	KeySystemNoticeDays     = "system_notice_days"
+	KeySystemNoticeMaxCount = "system_notice_max_count"
+	KeyPushLogDays          = "push_log_days"
+	KeyPushLogMaxCount      = "push_log_max_count"
+	KeyLoginLogDays         = "login_log_days"
+	KeyLoginLogMaxCount     = "login_log_max_count"
 
 	// Scheduler Settings Key 常量
 	KeyWorkerCount  = "worker_count"
@@ -160,6 +168,3 @@ var DefaultSettings = map[string]map[string]string{
 		KeyRateInterval: "200",
 	},
 }
-
-// DefaultLogRetention 默认日志清理配置
-var DefaultLogRetention = `{"system_notice":{"days":30,"max_count":500},"push_log":{"days":15,"max_count":5000}}`
