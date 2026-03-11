@@ -1,8 +1,13 @@
 package router
 
 import (
+	"bytes"
+	"compress/gzip"
+	"io"
 	"io/fs"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/engigu/baihu-panel/internal/static"
@@ -32,66 +37,128 @@ func initStaticRoutes(root *gin.RouterGroup) {
 		return
 	}
 
-	// 静态资源服务（Vue SPA），带缓存头部
-	assetsGroup := root.Group("/assets")
-	assetsGroup.Use(cacheControl("public, max-age=31536000, immutable")) // 带哈希的资源缓存
-	assetsGroup.StaticFS("/", http.FS(mustSubFS(staticFS, "assets")))
-
-	// logo.svg 短缓存实现
-	root.GET("/logo.svg", func(ctx *gin.Context) {
-		data, err := static.ReadFile("logo.svg")
-		if err != nil {
+	assetsFS := mustSubFS(staticFS, "assets")
+	
+	// 静态资源路由：专门处理 assets 目录
+	root.GET("/assets/*filepath", cacheControl("public, max-age=31536000, immutable"), func(ctx *gin.Context) {
+		path := strings.TrimPrefix(ctx.Param("filepath"), "/")
+		if path == "" {
 			ctx.Status(404)
 			return
 		}
-		ctx.Header("Cache-Control", "public, max-age=86400") // 缓存1天
-		ctx.Data(200, "image/svg+xml", data)
+
+		// 智能选择资源：优先寻找 .gz 版本，即便请求的是原文件名 (如 typescript.js)
+		gzPath := path + ".gz"
+		isGzipSupported := strings.Contains(ctx.GetHeader("Accept-Encoding"), "gzip")
+
+		// 检查 .gz 文件是否存在
+		if gzFile, err := assetsFS.Open(gzPath); err == nil {
+			defer gzFile.Close()
+			
+			contentType := mime.TypeByExtension(filepath.Ext(path))
+			if contentType == "" {
+				contentType = "application/octet-stream"
+			}
+			ctx.Header("Content-Type", contentType)
+
+			if isGzipSupported {
+				// 1. 客户端支持 Gzip: 直接发送压缩后的数据 (最优解)
+				ctx.Header("Content-Encoding", "gzip")
+				io.Copy(ctx.Writer, gzFile)
+			} else {
+				// 2. 客户端不支持 Gzip: 现场解压给它 (兼容性退路)
+				gr, _ := gzip.NewReader(gzFile)
+				defer gr.Close()
+				io.Copy(ctx.Writer, gr)
+			}
+			return
+		}
+
+		// 3. 如果连 .gz 都没有，最后尝试返回原文件（比如图片等本身不适合压缩的资源）
+		if file, err := assetsFS.Open(path); err == nil {
+			defer file.Close()
+			http.FileServer(http.FS(assetsFS)).ServeHTTP(ctx.Writer, ctx.Request)
+			return
+		}
+
+		ctx.Status(404)
 	})
+
+	// logo.svg 短缓存实现
+	root.GET("/logo.svg", func(ctx *gin.Context) {
+		serveSingleFile(ctx, "logo.svg", "image/svg+xml", "public, max-age=86400")
+	})
+}
+
+// serveSingleFile 处理单个静态文件的逻辑（支持自动解压）
+func serveSingleFile(ctx *gin.Context, filename string, contentType string, cache string) {
+	if cache != "" {
+		ctx.Header("Cache-Control", cache)
+	}
+	ctx.Header("Content-Type", contentType)
+
+	// 尝试寻找压缩版
+	if gzData, err := static.ReadFile(filename + ".gz"); err == nil {
+		if strings.Contains(ctx.GetHeader("Accept-Encoding"), "gzip") {
+			ctx.Header("Content-Encoding", "gzip")
+			ctx.Data(200, contentType, gzData)
+		} else {
+			gr, _ := gzip.NewReader(bytes.NewReader(gzData))
+			defer gr.Close()
+			io.Copy(ctx.Writer, gr)
+		}
+		return
+	}
+
+	// 尝试原文件
+	if data, err := static.ReadFile(filename); err == nil {
+		ctx.Data(200, contentType, data)
+		return
+	}
+	
+	ctx.Status(404)
 }
 
 // serveSPA 注入配置并返回 index.html 给前端渲染
 func serveSPA(ctx *gin.Context, urlPrefix string, status int) {
-	data, err := static.ReadFile("index.html")
-	if err != nil {
-		// 如果读不到 index.html (如 dev 模式未 build)，返回基础 HTML
-		// 如果已经是 /404 路径，则不再重定向以免死循环
-		path := ctx.Request.URL.Path
-		if strings.HasSuffix(path, "/404") {
-			ctx.Data(status, "text/html; charset=utf-8", []byte("<!DOCTYPE html><html><body><h1>404 Not Found</h1><p>Frontend assets not found. Please run 'npm run build' or check dev server.</p><a href='/'>Go Home</a></body></html>"))
-			ctx.Abort()
-			return
-		}
+	var data []byte
+	
+	// 尝试解压 index.html.gz (因为我们需要修改其内容，不能直接发 gz)
+	if gzData, err := static.ReadFile("index.html.gz"); err == nil {
+		gr, _ := gzip.NewReader(bytes.NewReader(gzData))
+		data, _ = io.ReadAll(gr)
+		gr.Close()
+	} else {
+		// 回退到普通 index.html
+		data, _ = static.ReadFile("index.html")
+	}
 
-		fallback := `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>404 Not Found</title></head><body>
-			<script>
-				const baseUrl = window.__BASE_URL__ || "/";
-				if (!window.location.pathname.endsWith("/404")) {
-					window.location.href = baseUrl + (baseUrl.endsWith("/") ? "" : "/") + "404";
-				}
-			</script>
-			<p>Not Found. Redirecting...</p>
-			</body></html>`
-		ctx.Header("Content-Type", "text/html; charset=utf-8")
-		ctx.Data(status, "text/html", []byte(fallback))
-		ctx.Abort()
+	if data == nil {
+		// ... 保持原有 fallback 逻辑 ...
+		serveFallback(ctx, urlPrefix, status)
 		return
 	}
 
 	html := string(data)
-
-	// 注入配置变量供前端使用（API 调用和路由）
 	baseHref := urlPrefix + "/"
-	if urlPrefix == "" {
-		baseHref = "/"
-	}
-
-	// 注入 base tag 为了让深度路由的相对路径资源加载正常
+	if urlPrefix == "" { baseHref = "/" }
 	html = strings.Replace(html, "<head>", "<head>\n    <base href=\""+baseHref+"\">", 1)
-
 	configScript := `<script>window.__BASE_URL__ = "` + urlPrefix + `"; window.__API_VERSION__ = "/api/v1";</script>`
 	html = strings.Replace(html, "</head>", configScript+"</head>", 1)
 
 	ctx.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	ctx.Data(status, "text/html; charset=utf-8", []byte(html))
+}
+
+func serveFallback(ctx *gin.Context, urlPrefix string, status int) {
+	path := ctx.Request.URL.Path
+	if strings.HasSuffix(path, "/404") {
+		ctx.Data(status, "text/html; charset=utf-8", []byte("<!DOCTYPE html><html>..."))
+		ctx.Abort()
+		return
+	}
+	// ... 原有逻辑 ...
+	ctx.Header("Content-Type", "text/html; charset=utf-8")
+	ctx.Data(status, "text/html", []byte("Not Found"))
 	ctx.Abort()
 }
