@@ -37,6 +37,11 @@ func initStaticRoutes(root *gin.RouterGroup) {
 	assetsGroup.Use(cacheControl("public, max-age=31536000, immutable")) // 带哈希的资源缓存
 	assetsGroup.StaticFS("/", http.FS(mustSubFS(staticFS, "assets")))
 
+	// Monaco Editor (vs) 静态资源
+	vsGroup := root.Group("/vs")
+	vsGroup.Use(cacheControl("public, max-age=31536000, immutable"))
+	vsGroup.StaticFS("/", http.FS(mustSubFS(staticFS, "vs")))
+
 	// logo.svg 短缓存实现
 	root.GET("/logo.svg", func(ctx *gin.Context) {
 		data, err := static.ReadFile("logo.svg")
