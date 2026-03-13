@@ -5,6 +5,7 @@ import { resetAuthCache } from '@/router'
 import { LayoutDashboard, ListTodo, FileCode, Settings, LogOut, ScrollText, Terminal, Variable, KeyRound, Menu, X, Server, Globe, Bell } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import SystemNotice from '@/components/SystemNotice.vue'
 import { api } from '@/api'
 import { useSiteSettings } from '@/composables/useSiteSettings'
 
@@ -61,7 +62,7 @@ const navItems = [
   { to: '/languages', icon: Globe, label: '语言依赖', exact: true },
   { to: '/terminal', icon: Terminal, label: '终端命令', exact: true },
   { to: '/notify', icon: Bell, label: '消息推送', exact: true },
-  { to: '/loginlogs', icon: KeyRound, label: '登录日志', exact: true },
+  { to: '/logs', icon: KeyRound, label: '消息日志', exact: true },
   { to: '/settings', icon: Settings, label: '系统设置', exact: true },
 ]
 
@@ -150,7 +151,10 @@ onMounted(() => {
             <span class="sm:hidden">{{ sentenceContent }}</span>
           </span>
         </div>
-        <ThemeToggle />
+        <div class="flex items-center gap-2">
+          <SystemNotice />
+          <ThemeToggle />
+        </div>
       </div>
       <div class="p-4 lg:p-6">
         <RouterView />

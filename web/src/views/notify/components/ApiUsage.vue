@@ -3,7 +3,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Copy, Terminal, Key, FileJson, RefreshCw, Check, Hash, Info } from 'lucide-vue-next'
+import { Copy, Terminal, Key, FileJson, RefreshCw, Check, Hash, Info, AlertTriangle } from 'lucide-vue-next'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import type { NotifyChannel, ChannelType } from '@/api'
 import { ref, computed } from 'vue'
 import { toast } from 'vue-sonner'
@@ -22,6 +32,20 @@ const emit = defineEmits<{
 
 const copiedBlock = ref<string | null>(null)
 const host = ref(window.location.host)
+const showConfirmDialog = ref(false)
+
+function onGenerateClick() {
+  if (props.apiToken) {
+    showConfirmDialog.value = true
+  } else {
+    emit('generateToken')
+  }
+}
+
+function handleConfirmGenerate() {
+  showConfirmDialog.value = false
+  emit('generateToken')
+}
 
 function copyToClipboard(text: string, blockId: string) {
   navigator.clipboard.writeText(text).then(() => {
@@ -74,8 +98,7 @@ const shellExample = computed(() => `curl -s -X POST "http://${host.value}/api/v
               <Copy v-else class="w-4 h-4" />
             </div>
           </div>
-          <Button variant="default" @click="emit('generateToken')"
-            class="h-10 px-4 shrink-0 transition-all active:scale-95">
+          <Button variant="default" @click="onGenerateClick" class="h-10 px-4 shrink-0 transition-all active:scale-95">
             <RefreshCw class="w-3.5 h-3.5 mr-2" />
             {{ apiToken ? '重新生成' : '生成 Token' }}
           </Button>
@@ -191,7 +214,7 @@ const shellExample = computed(() => `curl -s -X POST "http://${host.value}/api/v
             <div class="space-y-1">
               <p><span class="text-zinc-500"># 使用 CURL 调用推送接口</span></p>
               <p>curl -s -X POST <span class="text-emerald-600 dark:text-emerald-400">"http://{{ host
-              }}/api/v1/notify/send"</span> \</p>
+                  }}/api/v1/notify/send"</span> \</p>
               <p class="pl-4"> -H <span class="text-orange-600 dark:text-orange-400">"Content-Type:
                   application/json"</span> \</p>
               <p class="pl-4"> -H <span class="text-orange-600 dark:text-orange-400">"notify-token: {{ apiToken ||
@@ -212,7 +235,7 @@ const shellExample = computed(() => `curl -s -X POST "http://${host.value}/api/v
                 <div v-for="ch in channels" :key="ch.id"
                   class="flex items-center gap-2 text-xs bg-zinc-100/80 dark:bg-zinc-900 px-2 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors group">
                   <code class="text-primary font-bold tracking-tighter font-code"
-                    :title="ch.id">{{ ch.id.slice(0, 8) }}</code>
+                    :title="ch.id">{{ ch.id.slice(0, 8) }}...</code>
                   <span class="text-zinc-600 dark:text-zinc-500 truncate max-w-[100px]">{{ ch.name }}</span>
                   <Button variant="ghost" size="icon"
                     class="h-5 w-5 ml-auto text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-all rounded"
@@ -227,6 +250,25 @@ const shellExample = computed(() => `curl -s -X POST "http://${host.value}/api/v
         </CardContent>
       </Card>
     </div>
+
+    <!-- 重新生成确认弹窗 -->
+    <AlertDialog :open="showConfirmDialog" @update:open="showConfirmDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle class="flex items-center gap-2">
+            <AlertTriangle class="w-5 h-5 text-amber-500" />
+            确认重新生成 Token？
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            此操作将立刻覆盖当前 Token，旧的 Token 将会永久失效。确认要继续吗？
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction @click="handleConfirmGenerate">确认重新生成</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>
 

@@ -287,10 +287,12 @@ watch(() => route.query.agent_id, (newVal) => {
         <span class="flex-1 min-w-0 sm:flex-none sm:w-40 md:w-48 lg:w-56 shrink-0 max-sm:order-3">名称</span>
         <span class="w-24 sm:w-32 shrink-0 hidden md:block">执行位置</span>
         <span class="w-8 shrink-0 text-center max-sm:order-4 max-sm:ml-auto">状态</span>
-        
+
         <div class="w-full hidden max-sm:block max-sm:order-5 mt-1 border-t border-muted/10 opacity-50"></div>
-        
-        <span class="flex-1 min-w-[120px] max-sm:order-6 block sm:block max-sm:mt-1 flex items-center gap-1.5"><Terminal class="h-3.5 w-3.5 sm:hidden opacity-50"/>命令/地址</span>
+
+        <span class="flex-1 min-w-[120px] max-sm:order-6 block sm:block max-sm:mt-1 flex items-center gap-1.5">
+          <Terminal class="h-3.5 w-3.5 sm:hidden opacity-50" />命令/地址
+        </span>
         <span class="w-28 shrink-0 hidden md:block">定时规则</span>
         <span class="w-40 shrink-0 hidden lg:block">执行时间</span>
         <span class="w-28 sm:w-32 shrink-0 text-right sm:text-center max-sm:order-7 max-sm:mt-1">操作</span>
@@ -302,7 +304,8 @@ watch(() => route.query.agent_id, (newVal) => {
         </div>
         <div v-for="(task, index) in tasks" :key="task.id"
           class="flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-2 sm:gap-4 px-3 sm:px-4 py-2.5 sm:py-1.5 hover:bg-muted/30 transition-colors">
-          <span class="w-10 sm:w-12 shrink-0 text-muted-foreground text-xs sm:text-sm max-sm:order-1">#{{ total - (currentPage - 1) * pageSize - index }}</span>
+          <span class="w-10 sm:w-12 shrink-0 text-muted-foreground text-xs sm:text-sm max-sm:order-1">#{{ total -
+            (currentPage - 1) * pageSize - index }}</span>
           <span class="w-8 shrink-0 flex justify-center max-sm:order-2" :title="getTaskTypeTitle(task.type || 'task')">
             <GitBranch v-if="task.type === TASK_TYPE.REPO" class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
             <Terminal v-else class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
@@ -359,11 +362,10 @@ watch(() => route.query.agent_id, (newVal) => {
               <ZapOff class="h-3.5 w-3.5 text-muted-foreground" />
             </div>
           </span>
-          
+
           <div class="w-full hidden max-sm:block max-sm:order-5 -my-0.5"></div>
-          
-          <span
-            class="w-auto sm:w-32 shrink-0 flex justify-end sm:justify-center gap-1 max-sm:order-7 max-sm:mt-1">
+
+          <span class="w-auto sm:w-32 shrink-0 flex justify-end sm:justify-center gap-1 max-sm:order-7 max-sm:mt-1">
             <Button variant="ghost" size="icon" class="h-6 w-6 sm:h-7 sm:w-7" @click="runTask(task.id)" title="执行"
               :disabled="executingTaskId === task.id">
               <Loader2 v-if="executingTaskId === task.id" class="h-3 w-3 sm:h-3.5 sm:w-3.5 animate-spin" />

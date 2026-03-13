@@ -80,6 +80,10 @@ func (t *AgentTask) GetEnvs() string {
 	return t.Envs
 }
 
+func (t *AgentTask) GetEnvVars() []string {
+	return nil
+}
+
 func (t *AgentTask) GetLanguages() []map[string]string {
 	return t.Languages
 }
@@ -489,6 +493,7 @@ func (a *Agent) handleExecute(data json.RawMessage) {
 	var req struct {
 		TaskID string `json:"task_id"`
 		LogID  string `json:"log_id"`
+		Envs   string `json:"envs"`
 	}
 	if err := json.Unmarshal(data, &req); err != nil {
 		logger.Errorf("解析立即执行请求失败: %v", err)
@@ -506,13 +511,19 @@ func (a *Agent) handleExecute(data json.RawMessage) {
 	}
 
 	// 准备执行请求
+	// 如果消息中携带了环境变量，则优先使用（通常由服务端解析好后推过来）
+	envs := task.Envs
+	if req.Envs != "" {
+		envs = req.Envs
+	}
+
 	execReq := &executor.ExecutionRequest{
 		TaskID:    task.ID,
 		LogID:     req.LogID,
 		Name:      task.Name,
 		Command:   task.Command,
 		WorkDir:   task.WorkDir,
-		Envs:      executor.ParseEnvVars(task.Envs),
+		Envs:      executor.ParseEnvVars(envs),
 		Timeout:   task.Timeout,
 		Languages: task.Languages,
 		UseMise:   task.UseMise(),

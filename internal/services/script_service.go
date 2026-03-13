@@ -16,7 +16,7 @@ func (ss *ScriptService) CreateScript(name, content string, userID string) *mode
 	script := &models.Script{
 		ID:      utils.GenerateID(),
 		Name:    name,
-		Content: content,
+		Content: models.BigText(content),
 		UserID:  userID,
 	}
 	database.DB.Create(script)
@@ -43,7 +43,7 @@ func (ss *ScriptService) UpdateScript(id string, name, content string) *models.S
 		return nil
 	}
 	script.Name = name
-	script.Content = content
+	script.Content = models.BigText(content)
 	database.DB.Save(&script)
 	return &script
 }

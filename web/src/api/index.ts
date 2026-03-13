@@ -53,7 +53,7 @@ export const api = {
     login: (data: { username: string; password: string }) =>
       request<{ user: string }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
     logout: () => request('/auth/logout', { method: 'POST' }),
-    me: () => request<{ username: string }>('/auth/me'),
+    me: () => request<{ username: string; role: string }>('/auth/me'),
     register: (data: { username: string; password: string; email: string }) =>
       request('/auth/register', { method: 'POST', body: JSON.stringify(data) })
   },
@@ -126,13 +126,13 @@ export const api = {
     taskStats: (days?: number) => request<TaskStatsItem[]>(`/taskstats${days ? `?days=${days}` : ''}`)
   },
   settings: {
-    changePassword: (data: { old_password: string; new_password: string }) =>
+    changePassword: (data: { old_username?: string; username?: string; old_password: string; new_password?: string }) =>
       request('/settings/password', { method: 'POST', body: JSON.stringify(data) }),
     getSite: () => request<SiteSettings>('/settings/site'),
     getPublicSite: () => request<{ title: string; subtitle: string; icon: string; demo_mode: boolean }>('/settings/public'),
     updateSite: (data: SiteSettings) =>
       request('/settings/site', { method: 'PUT', body: JSON.stringify(data) }),
-    generateApiToken: () => request<{ token: string }>('/settings/site/api-token/generate', { method: 'POST' }),
+    generateOpenapiToken: () => request<{ token: string }>('/settings/site/openapi-token/generate', { method: 'POST' }),
     getScheduler: () => request<SchedulerSettings>('/settings/scheduler'),
     updateScheduler: (data: SchedulerSettings) =>
       request('/settings/scheduler', { method: 'PUT', body: JSON.stringify(data) }),
@@ -287,6 +287,20 @@ export const api = {
     deleteBinding: (id: string) => request('/notify/bindings/' + id, { method: 'DELETE' }),
     send: (data: { channel_id: string; title: string; text: string }) =>
       request<NotifyResult>('/notify/send', { method: 'POST', body: JSON.stringify(data) })
+  },
+  appLogs: {
+    list: (params?: { page?: number; page_size?: number; category?: string; status?: string; level?: string; keyword?: string }) => {
+      const query = new URLSearchParams()
+      if (params?.page) query.set('page', String(params.page))
+      if (params?.page_size) query.set('page_size', String(params.page_size))
+      if (params?.category) query.set('category', params.category)
+      if (params?.status) query.set('status', params.status)
+      if (params?.level) query.set('level', params.level)
+      if (params?.keyword) query.set('keyword', params.keyword)
+      return request<AppLogListResponse>(`/app-logs?${query}`)
+    },
+    markAsRead: (data: { id?: string; category?: string }) => request('/app-logs/read', { method: 'POST', body: JSON.stringify(data) }),
+    clear: (category: string) => request('/app-logs/clear', { method: 'POST', body: JSON.stringify({ category }) })
   }
 }
 
@@ -318,6 +332,8 @@ export interface Task {
   enabled: boolean
   last_run: string
   next_run: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface RepoConfig {
@@ -361,6 +377,7 @@ export interface EnvVar {
   value: string
   remark: string
   hidden: boolean
+  enabled: boolean
 }
 
 export interface EnvListResponse {
@@ -431,8 +448,15 @@ export interface SiteSettings {
   icon: string
   page_size: string
   cookie_days: string
-  api_token?: string
-  api_token_expire?: string
+  openapi_enabled?: boolean
+  openapi_token?: string
+  openapi_token_expire?: string
+  system_notice_days?: string
+  system_notice_max_count?: string
+  push_log_days?: string
+  push_log_max_count?: string
+  login_log_days?: string
+  login_log_max_count?: string
 }
 
 export interface SchedulerSettings {
@@ -557,5 +581,43 @@ export interface NotifyResult {
   success: boolean
   error?: string
 }
+
+export interface AppLog {
+  id: string
+  category: string
+  title: string
+  content: string
+  level: string
+  status: string
+  ref_id: string
+  channel_name?: string
+  error_msg: string
+  created_at: string
+  read_at: string | null
+}
+
+export interface AppLogListResponse {
+  data: AppLog[]
+  total: number
+}
+
+export const LOG_CATEGORY = {
+  SYSTEM_NOTICE: 'system_notice',
+  PUSH_LOG: 'push_log',
+  LOGIN_LOG: 'login_log'
+} as const
+
+export const LOG_LEVEL = {
+  INFO: 'info',
+  WARNING: 'warning',
+  ERROR: 'error'
+} as const
+
+export const LOG_STATUS = {
+  UNREAD: 'unread',
+  READ: 'read',
+  SUCCESS: 'success',
+  FAILED: 'failed'
+} as const
 
 

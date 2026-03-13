@@ -21,7 +21,7 @@ func ToScriptVO(script *models.Script) *ScriptVO {
 	return &ScriptVO{
 		ID:        script.ID,
 		Name:      script.Name,
-		Content:   script.Content,
+		Content:   string(script.Content),
 		CreatedAt: script.CreatedAt,
 		UpdatedAt: script.UpdatedAt,
 	}

@@ -36,6 +36,7 @@ type EnvVO struct {
 	Value     string           `json:"value"`
 	Remark    string           `json:"remark"`
 	Hidden    bool             `json:"hidden"`
+	Enabled   bool             `json:"enabled"`
 	CreatedAt models.LocalTime `json:"created_at"`
 	UpdatedAt models.LocalTime `json:"updated_at"`
 }
@@ -48,9 +49,10 @@ func ToEnvVO(env *models.EnvironmentVariable) *EnvVO {
 	return &EnvVO{
 		ID:        env.ID,
 		Name:      env.Name,
-		Value:     env.Value,
+		Value:     string(env.Value),
 		Remark:    env.Remark,
 		Hidden:    env.Hidden,
+		Enabled:   env.Enabled,
 		CreatedAt: env.CreatedAt,
 		UpdatedAt: env.UpdatedAt,
 	}
@@ -88,39 +90,9 @@ type LoginLogVO struct {
 	CreatedAt models.LocalTime `json:"created_at"`
 }
 
-// ToLoginLogVO 将 LoginLog 模型转换为 LoginLogVO
-func ToLoginLogVO(log *models.LoginLog) *LoginLogVO {
-	if log == nil {
-		return nil
-	}
-	return &LoginLogVO{
-		ID:        log.ID,
-		Username:  log.Username,
-		IP:        log.IP,
-		UserAgent: log.UserAgent,
-		Status:    log.Status,
-		Message:   log.Message,
-		CreatedAt: log.CreatedAt,
-	}
-}
-
-// ToLoginLogVOList 将 LoginLog 模型列表转换为 LoginLogVO 列表
-func ToLoginLogVOList(logs []*models.LoginLog) []*LoginLogVO {
-	if logs == nil {
-		return nil
-	}
-	vos := make([]*LoginLogVO, len(logs))
-	for i, l := range logs {
-		vos[i] = ToLoginLogVO(l)
-	}
-	return vos
-}
-
-// ToLoginLogVOListFromModels 将 LoginLog 模型列表转换为 LoginLogVO 列表
-func ToLoginLogVOListFromModels(logs []models.LoginLog) []*LoginLogVO {
-	vos := make([]*LoginLogVO, len(logs))
-	for i := range logs {
-		vos[i] = ToLoginLogVO(&logs[i])
-	}
-	return vos
+// TokenConfig Token 配置结构体
+type TokenConfig struct {
+	Enabled  bool   `json:"enabled"`
+	Token    string `json:"token"`
+	ExpireAt string `json:"expire_at"`
 }

@@ -23,16 +23,16 @@ func (ts *TaskService) CreateTask(name, command, schedule string, timeout int, w
 	task := &models.Task{
 		ID:            utils.GenerateID(),
 		Name:          name,
-		Command:       command,
+		Command:       models.BigText(command),
 		Tags:          tags,
 		Type:          taskType,
 		TriggerType:   triggerType,
-		Config:        config,
+		Config:        models.BigText(config),
 		Schedule:      schedule,
 		Timeout:       timeout,
 		WorkDir:       workDir,
 		CleanConfig:   cleanConfig,
-		Envs:          envs,
+		Envs:          models.BigText(envs),
 		Languages:     languages,
 		AgentID:       agentID,
 		Enabled:       true,
@@ -94,16 +94,17 @@ func (ts *TaskService) UpdateTask(id string, name, command, schedule string, tim
 		return nil
 	}
 	task.Name = name
-	task.Command = command
+	task.Command = models.BigText(command)
 	task.Tags = tags
 	task.Schedule = schedule
 	task.Timeout = timeout
 	task.WorkDir = workDir
 	task.CleanConfig = cleanConfig
-	task.Envs = envs
+	task.Envs = models.BigText(envs)
 	task.Enabled = enabled
 	task.AgentID = agentID
 	task.Languages = languages
+	task.Config = models.BigText(config)
 	task.RetryCount = retryCount
 	task.RetryInterval = retryInterval
 	task.RandomRange = randomRange
@@ -127,6 +128,6 @@ func (ts *TaskService) DeleteTask(id string) bool {
 	// 同时删除关联的通知推送设置
 	database.DB.Where("type = ? AND data_id = ?", constant.BindingTypeTask, id).Delete(&models.NotifyBinding{})
 	
-	result := database.DB.Where("id = ?", id).Delete(&models.Task{})
+	result := database.DB.Unscoped().Where("id = ?", id).Delete(&models.Task{})
 	return result.RowsAffected > 0
 }

@@ -62,17 +62,17 @@ const (
 
 // ExecutionRequest 执行请求（标准接口）
 type ExecutionRequest struct {
-	TaskID    string                 // 任务 ID
-	LogID     string                 // 日志 ID
-	Name      string                 // 任务名称
-	Type      TaskType               // 任务类型
-	Command   string                 // 命令
-	WorkDir   string                 // 工作目录
-	Envs      []string               // 环境变量
-	Timeout   int                    // 超时时间（分钟）
-	Languages []map[string]string    // 语言环境配置
-	UseMise   bool                   // 是否使用 mise
-	Metadata  ExecutionMetadata      // 额外元数据
+	TaskID    string              // 任务 ID
+	LogID     string              // 日志 ID
+	Name      string              // 任务名称
+	Type      TaskType            // 任务类型
+	Command   string              // 命令
+	WorkDir   string              // 工作目录
+	Envs      []string            // 环境变量
+	Timeout   int                 // 超时时间（分钟）
+	Languages []map[string]string // 语言环境配置
+	UseMise   bool                // 是否使用 mise
+	Metadata  ExecutionMetadata   // 额外元数据
 }
 
 // ExecutionMetadata 执行额外元数据
