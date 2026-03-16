@@ -25,6 +25,7 @@ type DatabaseConfig struct {
 	Password    string `ini:"password"`
 	DBName      string `ini:"dbname"`
 	Path        string `ini:"path"`
+	DSN         string `ini:"dsn"`
 	TablePrefix string `ini:"table_prefix"`
 }
 
@@ -127,8 +128,8 @@ func LoadConfig(path string) (*AppConfig, error) {
 	if Config.Server.URLPrefix != "" {
 		logger.Infof("[Config] URL前缀: %s", Config.Server.URLPrefix)
 	}
-	logger.Infof("[Config] 数据库: type=%s, host=%s, port=%d, dbname=%s",
-		Config.Database.Type, Config.Database.Host, Config.Database.Port, Config.Database.DBName)
+	logger.Infof("[Config] 数据库: type=%s, host=%s, port=%d, dbname=%s, dsn=%v",
+		Config.Database.Type, Config.Database.Host, Config.Database.Port, Config.Database.DBName, Config.Database.DSN != "")
 
 	return Config, nil
 }
@@ -149,6 +150,7 @@ func applyEnvOverrides() {
 	getEnvStr("BH_DB_PASSWORD", &Config.Database.Password)
 	getEnvStr("BH_DB_NAME", &Config.Database.DBName)
 	getEnvStr("BH_DB_PATH", &Config.Database.Path)
+	getEnvStr("BH_DB_DSN", &Config.Database.DSN)
 	getEnvStr("BH_DB_TABLE_PREFIX", &Config.Database.TablePrefix)
 
 	// Security

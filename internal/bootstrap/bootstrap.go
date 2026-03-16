@@ -82,6 +82,7 @@ func (a *App) initDatabase() {
 		Password: a.Config.Database.Password,
 		DBName:   a.Config.Database.DBName,
 		Path:     a.Config.Database.Path,
+		DSN:      a.Config.Database.DSN,
 	}
 
 	if err := database.Init(dbCfg); err != nil {
