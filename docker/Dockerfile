@@ -139,6 +139,7 @@ COPY --from=frontend-builder /app/web/dist /www/baihu
 
 # Copy configs and entrypoint
 COPY --from=backend-builder /app/configs ./configs
+COPY --from=backend-builder /app/example ./example
 COPY docker/docker-entrypoint.sh .
 
 

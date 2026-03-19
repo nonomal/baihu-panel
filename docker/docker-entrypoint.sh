@@ -24,6 +24,14 @@ mkdir -p \
   /app/configs \
   /app/envs
 
+if [ -d "/app/example" ]; then
+  mkdir -p /app/data/scripts/example
+  rsync -a --ignore-existing /app/example/ /app/data/scripts/example/ || true
+  log "Example scripts synced to /app/data/scripts/example"
+else
+  log "No example directory found, skipping example sync"
+fi
+
 # ============================
 # Mise 环境初始化
 # ============================
