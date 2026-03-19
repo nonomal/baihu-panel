@@ -60,9 +60,9 @@ onMounted(loadAbout)
           <div class="flex justify-between items-center">
             <span class="text-muted-foreground text-sm">当前版本:</span>
             <div class="flex items-center gap-1.5">
-              <Badge variant="outline" class="font-mono text-xs">{{ aboutInfo?.version || 'dev' }}</Badge>
+              <span class="text-sm font-medium">{{ aboutInfo?.version || 'dev' }}</span>
               <Badge v-if="aboutInfo?.remote_version && aboutInfo.remote_version === aboutInfo.version" variant="secondary"
-                class="text-[10px] h-4 px-1 bg-green-500/10 text-green-600 border-green-500/20">
+                class="text-[10px] h-4 px-1 bg-green-500/10 text-green-600 border-green-500/20 shadow-none">
                 最新版本
               </Badge>
             </div>
@@ -70,9 +70,7 @@ onMounted(loadAbout)
           <div v-if="aboutInfo?.remote_version && aboutInfo.remote_version !== aboutInfo.version"
             class="flex justify-between items-center">
             <span class="text-muted-foreground text-sm">最新版本:</span>
-            <Badge variant="secondary" class="font-mono text-xs bg-primary/10 text-primary border-primary/20">
-              {{ aboutInfo.remote_version }}
-            </Badge>
+            <span class="text-sm font-medium text-primary">{{ aboutInfo.remote_version }}</span>
           </div>
           <div class="flex justify-between items-center">
             <span class="text-muted-foreground text-sm">构建时间:</span>
