@@ -455,7 +455,7 @@ async function save() {
       <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 pointer-events-none" />
 
       <div class="flex flex-col max-h-[85vh]">
-        <DialogHeader class="px-6 pt-6 pb-2 shrink-0">
+        <DialogHeader class="px-6 pr-12 pt-6 pb-2 shrink-0">
           <DialogTitle class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
             {{ isEdit ? '编辑任务' : '新建任务' }}
           </DialogTitle>
@@ -467,12 +467,12 @@ async function save() {
             <section class="space-y-4">
               <div class="flex items-center gap-2 mb-1">
                 <div class="h-4 w-1 bg-primary rounded-full" />
-                <h3 class="text-sm font-semibold text-foreground/80">基本信息</h3>
+                <h3 class="text-sm font-bold text-foreground">基本信息</h3>
               </div>
 
               <div class="grid gap-4 pl-3 border-l border-muted">
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">任务名称</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">任务名称</Label>
                   <Input v-model="form.name" placeholder="输入任务描述性名称" 
                     :class="cn('sm:col-span-3 h-9 bg-muted/20 border-muted-foreground/15 transition-all focus:bg-background/50', form.name ? 'text-sm font-medium' : 'text-[11px] font-normal')" />
                 </div>
@@ -503,7 +503,7 @@ async function save() {
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">执行位置</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">执行位置</Label>
                   <div class="sm:col-span-3">
                     <Select v-model="selectedAgentId">
                       <SelectTrigger class="h-9 bg-muted/20 border-muted-foreground/15">
@@ -528,7 +528,7 @@ async function save() {
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">触发方式</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">触发方式</Label>
                   <div class="sm:col-span-3">
                     <Select v-model="selectedTriggerType">
                       <SelectTrigger class="h-9 bg-muted/20 border-muted-foreground/15">
@@ -548,7 +548,7 @@ async function save() {
             <section class="space-y-4">
               <div class="flex items-center gap-2 mb-1">
                 <div class="h-4 w-1 bg-primary rounded-full" />
-                <h3 class="text-sm font-semibold text-foreground/80">执行配置</h3>
+                <h3 class="text-sm font-bold text-foreground">执行配置</h3>
               </div>
 
               <div class="grid gap-4 pl-3 border-l border-muted">
@@ -664,7 +664,7 @@ async function save() {
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">工作目录</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">工作目录</Label>
                   <div class="sm:col-span-3">
                     <DirTreeSelect v-if="selectedAgentId === 'local'" v-model="currentWorkDir" class="h-9" />
                     <Input v-else v-model="currentWorkDir" placeholder="任务运行路径（留空取 Agent 默认值）" 
@@ -759,7 +759,7 @@ async function save() {
             <section class="space-y-4">
               <div class="flex items-center gap-2 mb-1">
                 <div class="h-4 w-1 bg-primary rounded-full" />
-                <h3 class="text-sm font-semibold text-foreground/80">调度策略</h3>
+                <h3 class="text-sm font-bold text-foreground">调度策略</h3>
               </div>
 
               <div class="grid gap-5 pl-3 border-l border-muted">
@@ -797,7 +797,7 @@ async function save() {
                   </div>
 
                   <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                    <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">随机延迟</Label>
+                    <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">随机延迟</Label>
                     <div class="sm:col-span-3 flex items-center gap-4">
                       <div class="flex items-center gap-2 group">
                         <Input :model-value="form.random_range" @update:model-value="v => form.random_range = Number(v || 0)" type="number" :min="0" 
@@ -890,3 +890,16 @@ async function save() {
   </DialogContent>
 </Dialog>
 </template>
+
+<style scoped>
+/* 仅针对任务编辑页面的字体渲染优化 */
+:deep(*) {
+  -webkit-font-smoothing: auto !important;
+  -moz-osx-font-smoothing: auto !important;
+  letter-spacing: 0 !important;
+}
+
+:deep(label), :deep(h3), :deep(input) {
+  text-rendering: optimizeLegibility;
+}
+</style>

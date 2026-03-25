@@ -424,7 +424,7 @@ async function save() {
       <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 pointer-events-none" />
 
       <div class="flex flex-col max-h-[85vh]">
-        <DialogHeader class="px-6 pt-6 pb-2 shrink-0">
+        <DialogHeader class="px-6 pr-12 pt-6 pb-2 shrink-0">
           <div class="flex items-center justify-between">
             <DialogTitle class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
               {{ isEdit ? '编辑仓库同步' : '新建仓库同步' }}
@@ -442,12 +442,12 @@ async function save() {
             <section class="space-y-4">
               <div class="flex items-center gap-2 mb-1">
                 <div class="h-4 w-1 bg-primary rounded-full" />
-                <h3 class="text-sm font-semibold text-foreground/80">基本信息</h3>
+                <h3 class="text-sm font-bold text-foreground">基本信息</h3>
               </div>
 
               <div class="grid gap-4 pl-3 border-l border-muted">
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">任务名称</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">任务名称</Label>
                   <Input v-model="form.name" placeholder="输入同步任务名称" class="sm:col-span-3 h-9 bg-muted/30 border-muted-foreground/20 focus:bg-background transition-all" />
                 </div>
 
@@ -480,12 +480,12 @@ async function save() {
             <section class="space-y-4">
               <div class="flex items-center gap-2 mb-1">
                 <div class="h-4 w-1 bg-primary rounded-full" />
-                <h3 class="text-sm font-semibold text-foreground/80">核心配置</h3>
+                <h3 class="text-sm font-bold text-foreground">核心配置</h3>
               </div>
 
               <div class="grid gap-4 pl-3 border-l border-muted">
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">源类型</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">源类型</Label>
                   <div class="sm:col-span-3">
                     <Select :model-value="repoConfig.source_type" @update:model-value="(v) => repoConfig.source_type = String(v || 'git')">
                       <SelectTrigger class="h-9 bg-muted/30 border-muted-foreground/20">
@@ -521,7 +521,7 @@ async function save() {
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">目标路径</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">目标路径</Label>
                   <div class="sm:col-span-3">
                     <DirTreeSelect v-if="selectedAgentId === 'local'" :model-value="repoConfig.target_path || ''"
                       @update:model-value="v => repoConfig.target_path = v" class="h-9" />
@@ -529,17 +529,17 @@ async function save() {
                   </div>
                 </div>
                 <div v-if="repoConfig.source_type === 'git'" class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">分支</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">分支</Label>
                   <Input v-model="repoConfig.branch" placeholder="main (默认)" class="sm:col-span-3 h-9 bg-muted/30 border-muted-foreground/20 focus:bg-background transition-all" autocomplete="off" />
                 </div>
 
                 <div v-if="repoConfig.source_type === 'git'" class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">稀疏路径</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">稀疏路径</Label>
                   <Input v-model="repoConfig.sparse_path" placeholder="指定目录或文件 (可选)" class="sm:col-span-3 h-9 bg-muted/30 border-muted-foreground/20 focus:bg-background transition-all" autocomplete="off" />
                 </div>
 
                 <div v-if="repoConfig.source_type === 'git' && repoConfig.sparse_path" class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">下载模式</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">下载模式</Label>
                   <div class="sm:col-span-3">
                     <div class="flex items-center space-x-2 bg-muted/20 px-3 py-1.5 rounded-full border border-muted-foreground/10 w-fit">
                       <Checkbox id="single-file-sync" v-model="isSingleFile" class="scale-90" />
@@ -554,12 +554,12 @@ async function save() {
             <section class="space-y-4">
               <div class="flex items-center gap-2 mb-1">
                 <div class="h-4 w-1 bg-primary rounded-full" />
-                <h3 class="text-sm font-semibold text-foreground/80">访问控制</h3>
+                <h3 class="text-sm font-bold text-foreground">访问控制</h3>
               </div>
 
               <div class="grid gap-4 pl-3 border-l border-muted">
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">代理配置</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">代理配置</Label>
                   <div class="sm:col-span-3">
                     <Select :model-value="repoConfig.proxy" @update:model-value="(v) => repoConfig.proxy = String(v || 'none')">
                       <SelectTrigger class="h-9 bg-muted/30 border-muted-foreground/20">
@@ -573,12 +573,12 @@ async function save() {
                 </div>
 
                 <div v-if="repoConfig.proxy === 'custom'" class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">代理地址</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">代理地址</Label>
                   <Input v-model="repoConfig.proxy_url" placeholder="https://your-proxy.com" class="sm:col-span-3 h-9 bg-muted/30 font-mono text-xs border-muted-foreground/20 focus:bg-background transition-all" autocomplete="off" />
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">身份认证</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">身份认证</Label>
                   <div class="sm:col-span-3 relative">
                     <Input v-model="repoConfig.auth_token" type="password" placeholder="推荐使用 Token 替代密码" class="h-9 bg-muted/30 border-muted-foreground/20 pr-10 text-xs focus:bg-background transition-all" autocomplete="new-password" />
                     <Shield class="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground opacity-40" />
@@ -591,12 +591,12 @@ async function save() {
             <section class="space-y-4">
               <div class="flex items-center gap-2 mb-1">
                 <div class="h-4 w-1 bg-primary rounded-full" />
-                <h3 class="text-sm font-semibold text-foreground/80">脚本过滤</h3>
+                <h3 class="text-sm font-bold text-foreground">脚本过滤</h3>
               </div>
 
               <div class="grid gap-4 pl-3 border-l border-muted">
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">白名单</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">白名单</Label>
                   <div class="sm:col-span-3 relative">
                     <Input v-model="repoConfig.whitelist_paths" placeholder="保活路径或脚本关键词 (如: logs/ | jd_ )" class="h-9 bg-muted/30 border-muted-foreground/20 focus:bg-background transition-all" autocomplete="off" />
                     <p class="text-[10px] text-muted-foreground mt-1 px-1 leading-relaxed">请输入脚本筛选白名单关键词或保活路径（支持 *），多个关键词或路径使用竖线(|)或逗号(,)分割</p>
@@ -604,7 +604,7 @@ async function save() {
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">脚本黑名单</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">脚本黑名单</Label>
                   <div class="sm:col-span-3 relative">
                     <Input v-model="repoConfig.blacklist" placeholder="黑名单关键词 (如: help)" class="h-9 bg-muted/30 border-muted-foreground/20 focus:bg-background transition-all" autocomplete="off" />
                     <p class="text-[10px] text-muted-foreground mt-1 px-1">脚本筛选黑名单关键词，多个关键词竖线(|)分割</p>
@@ -612,7 +612,7 @@ async function save() {
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">依赖文件</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">依赖文件</Label>
                   <div class="sm:col-span-3 relative">
                     <Input v-model="repoConfig.dependence" placeholder="依赖文件关键词 (如: ccav | notify)" class="h-9 bg-muted/30 border-muted-foreground/20 focus:bg-background transition-all" autocomplete="off" />
                     <p class="text-[10px] text-muted-foreground mt-1 px-1">脚本依赖文件关键词，多个关键词竖线(|)分割</p>
@@ -620,7 +620,7 @@ async function save() {
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">文件后缀</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">文件后缀</Label>
                   <div class="sm:col-span-3 relative">
                     <Input v-model="repoConfig.extensions" placeholder="文件后缀 (如: js | py | sh)" class="h-9 bg-muted/30 border-muted-foreground/20 focus:bg-background transition-all" autocomplete="off" />
                     <p class="text-[10px] text-muted-foreground mt-1 px-1">脚本文件后缀，多个后缀竖线(|)分割</p>
@@ -633,7 +633,7 @@ async function save() {
             <section v-if="selectedAgentId === 'local'" class="space-y-4">
               <div class="flex items-center gap-2 mb-1">
                 <div class="h-4 w-1 bg-primary rounded-full" />
-                <h3 class="text-sm font-semibold text-foreground/80">运行环境</h3>
+                <h3 class="text-sm font-bold text-foreground">运行环境</h3>
               </div>
 
               <div class="grid gap-4 pl-3 border-l border-muted">
@@ -735,7 +735,7 @@ async function save() {
             <section class="space-y-4">
               <div class="flex items-center gap-2 mb-1">
                 <div class="h-4 w-1 bg-primary rounded-full" />
-                <h3 class="text-sm font-semibold text-foreground/80">调度策略</h3>
+                <h3 class="text-sm font-bold text-foreground">调度策略</h3>
               </div>
 
               <div class="grid gap-5 pl-3 border-l border-muted">
@@ -763,7 +763,7 @@ async function save() {
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-center gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">随机延迟</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">随机延迟</Label>
                   <div class="sm:col-span-3 flex items-center gap-4">
                     <div class="flex items-center gap-2">
                       <Input :model-value="form.random_range" @update:model-value="v => form.random_range = Number(v || 0)" type="number" :min="0" class="w-20 h-9 bg-muted/30 text-center" />
@@ -776,7 +776,7 @@ async function save() {
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-4 items-start gap-3">
-                  <Label class="sm:text-right text-xs text-muted-foreground uppercase tracking-wider">运行策略</Label>
+                  <Label class="sm:text-right text-xs text-foreground/70 uppercase tracking-wider font-medium">运行策略</Label>
                   <div class="sm:col-span-3 space-y-4">
                     
                     <div class="p-3 rounded-xl bg-muted/20 border border-muted-foreground/10 space-y-2.5">
@@ -877,3 +877,16 @@ async function save() {
     </DialogContent>
   </Dialog>
 </template>
+
+<style scoped>
+/* 仅针对任务编辑页面的字体渲染优化 */
+:deep(*) {
+  -webkit-font-smoothing: auto !important;
+  -moz-osx-font-smoothing: auto !important;
+  letter-spacing: 0 !important;
+}
+
+:deep(label), :deep(h3), :deep(input) {
+  text-rendering: optimizeLegibility;
+}
+</style>
