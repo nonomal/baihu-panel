@@ -16,8 +16,18 @@ var Client = &http.Client{
 	Timeout: 5 * time.Second,
 }
 
-func (cw *CustomWebhook) Request(url string, msg string) ([]byte, error) {
-	resp, err := Client.Post(url, "application/json", bytes.NewBuffer([]byte(msg)))
+func (cw *CustomWebhook) Request(url string, msg string, headers map[string]string) ([]byte, error) {
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(msg)))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := Client.Do(req)
 	if err != nil {
 		return nil, err
 	}

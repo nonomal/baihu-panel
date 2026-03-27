@@ -40,7 +40,7 @@ func (s *TaskLogService) CreateEmptyLog(taskID string, command string) (*models.
 	taskLog := &models.TaskLog{
 		ID:        utils.GenerateID(),
 		TaskID:    taskID,
-		Command:   command,
+		Command:   models.BigText(command),
 		Status:    "running",
 		StartTime: &startTime,
 		CreatedAt: models.Now(),
@@ -95,7 +95,8 @@ func (s *TaskLogService) UpdateTaskStats(taskID string, status string) {
 // CleanTaskLogs 清理任务日志
 func (s *TaskLogService) CleanTaskLogs(taskID string) {
 	var task models.Task
-	if err := database.DB.Where("id = ?", taskID).First(&task).Error; err != nil {
+	res := database.DB.Where("id = ?", taskID).Limit(1).Find(&task)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return
 	}
 
@@ -121,8 +122,8 @@ func (s *TaskLogService) CleanTaskLogs(taskID string) {
 		deleted = result.RowsAffected
 	case "count":
 		var boundaryLog models.TaskLog
-		err := database.DB.Where("task_id = ?", taskID).Order("id DESC").Offset(config.Keep - 1).Limit(1).First(&boundaryLog).Error
-		if err == nil {
+		res := database.DB.Where("task_id = ?", taskID).Order("id DESC").Offset(config.Keep - 1).Limit(1).Find(&boundaryLog)
+		if res.Error == nil && res.RowsAffected > 0 {
 			result := database.DB.Where("task_id = ? AND id < ?", taskID, boundaryLog.ID).Delete(&models.TaskLog{})
 			deleted = result.RowsAffected
 		}
@@ -162,9 +163,9 @@ func (s *TaskLogService) CreateTaskLogFromAgentResult(result *models.AgentTaskRe
 		ID:        utils.GenerateID(),
 		TaskID:    result.TaskID,
 		AgentID:   &result.AgentID,
-		Command:   result.Command,
-		Output:    compressed,
-		Error:     result.Error,
+		Command:   models.BigText(result.Command),
+		Output:    models.BigText(compressed),
+		Error:     models.BigText(result.Error),
 		Status:    result.Status,
 		Duration:  result.Duration,
 		ExitCode:  result.ExitCode,
@@ -206,9 +207,9 @@ func (s *TaskLogService) CreateTaskLogFromLocalExecution(taskID string, command,
 	taskLog := &models.TaskLog{
 		ID:        utils.GenerateID(),
 		TaskID:    taskID,
-		Command:   command,
-		Output:    compressed,
-		Error:     systemErr,
+		Command:   models.BigText(command),
+		Output:    models.BigText(compressed),
+		Error:     models.BigText(systemErr),
 		Status:    status,
 		Duration:  duration,
 		ExitCode:  exitCode,

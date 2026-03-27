@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import Pagination from '@/components/Pagination.vue'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import LogViewer from './LogViewer.vue'
+import Ansi from 'ansi-to-vue3'
 import {
   RefreshCw, X, Search, Maximize2, GitBranch, Terminal,
   CheckCircle2, XCircle, AlertCircle, Ban, Clock, Zap as ZapIcon, Check, Trash2
@@ -251,12 +252,12 @@ async function handleDeleteLog() {
   try {
     await api.logs.delete(deleteLogId.value)
     toast.success('该日志已删除')
-    
+
     // 如果当前选中的是这条日志，关闭详情页
     if (selectedLog.value?.id === deleteLogId.value) {
       closeDetail()
     }
-    
+
     showDeleteDialog.value = false
     loadLogs()
   } catch (err: any) {
@@ -340,13 +341,15 @@ watch(() => route.query, (newQuery) => {
         <Button variant="outline" size="icon" class="h-9 w-9 shrink-0" @click="loadLogs" title="刷新">
           <RefreshCw class="h-4 w-4" />
         </Button>
-        <Button variant="outline" class="h-9 px-4 shrink-0 text-sm text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20" @click="showClearDialog = true">
+        <Button variant="outline"
+          class="h-9 px-4 shrink-0 text-sm text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
+          @click="showClearDialog = true">
           <Trash2 class="h-4 w-4 sm:mr-2" /> <span class="hidden sm:inline" style="padding-left: 2px;">清空日志</span>
         </Button>
       </div>
     </div>
 
-    <div class="flex flex-col lg:flex-row gap-4">
+    <div class="flex flex-col lg:flex-row gap-4" style="height: 520px;">
       <!-- 日志列表 -->
       <div class="flex-1 min-w-0 rounded-lg border bg-card overflow-hidden flex flex-col">
         <!-- 小屏表头 -->
@@ -382,7 +385,8 @@ watch(() => route.query, (newQuery) => {
           ]" @click="selectLog(log)">
             <!-- 小屏行 -->
             <div class="flex sm:hidden items-center gap-2 px-3 py-2">
-              <span class="w-14 shrink-0 text-muted-foreground text-xs">#{{ total - (currentPage - 1) * pageSize - index }}</span>
+              <span class="w-14 shrink-0 text-muted-foreground text-xs">#{{ total - (currentPage - 1) * pageSize - index
+                }}</span>
               <span class="w-6 shrink-0 flex justify-center" :title="getTaskTypeTitle(log.task_type || 'task')">
                 <GitBranch v-if="log.task_type === TASK_TYPE.REPO" class="h-3.5 w-3.5 text-primary" />
                 <Terminal v-else class="h-3.5 w-3.5 text-primary" />
@@ -415,16 +419,19 @@ watch(() => route.query, (newQuery) => {
                 </div>
               </span>
               <span class="w-12 text-right shrink-0 text-muted-foreground text-xs">{{ formatDuration(log.duration)
-              }}</span>
+                }}</span>
               <span class="w-8 shrink-0 flex justify-center opacity-100">
-                <Button variant="ghost" size="icon" class="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0" @click.stop="confirmDeleteLog(log.id)" title="删除该日志">
+                <Button variant="ghost" size="icon"
+                  class="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                  @click.stop="confirmDeleteLog(log.id)" title="删除该日志">
                   <Trash2 class="h-3.5 w-3.5" />
                 </Button>
               </span>
             </div>
             <!-- 大屏行 -->
             <div class="hidden sm:flex items-center gap-4 px-4 py-2">
-              <span class="w-16 shrink-0 text-muted-foreground text-sm">#{{ total - (currentPage - 1) * pageSize - index }}</span>
+              <span class="w-16 shrink-0 text-muted-foreground text-sm">#{{ total - (currentPage - 1) * pageSize - index
+                }}</span>
               <span class="w-10 shrink-0 flex justify-center" :title="getTaskTypeTitle(log.task_type || 'task')">
                 <GitBranch v-if="log.task_type === TASK_TYPE.REPO" class="h-4 w-4 text-primary" />
                 <Terminal v-else class="h-4 w-4 text-primary" />
@@ -460,12 +467,14 @@ watch(() => route.query, (newQuery) => {
                 </div>
               </span>
               <span class="w-16 text-right shrink-0 text-muted-foreground text-xs">{{ formatDuration(log.duration)
-              }}</span>
+                }}</span>
               <span v-if="!selectedLog"
                 class="w-40 text-right shrink-0 text-muted-foreground text-xs hidden md:block">{{ log.start_time ||
                   log.created_at }}</span>
               <span class="w-10 shrink-0 flex justify-center opacity-100">
-                <Button variant="ghost" size="icon" class="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0" @click.stop="confirmDeleteLog(log.id)" title="删除该日志">
+                <Button variant="ghost" size="icon"
+                  class="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                  @click.stop="confirmDeleteLog(log.id)" title="删除该日志">
                   <Trash2 class="h-3.5 w-3.5" />
                 </Button>
               </span>
@@ -478,7 +487,7 @@ watch(() => route.query, (newQuery) => {
 
       <!-- 日志详情侧边栏 -->
       <div v-if="selectedLog"
-        class="w-full lg:w-[480px] rounded-lg border bg-card flex flex-col overflow-hidden shrink-0 max-h-[80vh] lg:max-h-none">
+        class="w-full lg:w-[480px] rounded-lg border bg-card flex flex-col overflow-hidden shrink-0">
         <div class="flex items-center justify-between px-4 h-11 border-b bg-muted/20">
           <div class="flex items-center gap-2">
             <span class="text-sm font-medium text-muted-foreground">日志详情</span>
@@ -488,7 +497,8 @@ watch(() => route.query, (newQuery) => {
             </Button>
           </div>
           <div class="flex items-center gap-1">
-            <Button variant="ghost" size="icon" class="h-7 w-7 text-muted-foreground hover:text-destructive" title="删除该日志" @click="confirmDeleteLog(selectedLog.id)">
+            <Button variant="ghost" size="icon" class="h-7 w-7 text-muted-foreground hover:text-destructive"
+              title="删除该日志" @click="confirmDeleteLog(selectedLog.id)">
               <Trash2 class="h-3.5 w-3.5" />
             </Button>
             <Button variant="ghost" size="icon" class="h-7 w-7" @click="closeDetail" title="关闭">
@@ -555,9 +565,8 @@ watch(() => route.query, (newQuery) => {
               <Maximize2 class="h-3.5 w-3.5" />
             </Button>
           </div>
-          <div class="flex-1 overflow-auto bg-muted/5 min-h-[160px]">
-            <pre
-              class="p-4 text-xs font-mono whitespace-pre-wrap break-all log-pre leading-relaxed">{{ decompressedOutput }}</pre>
+          <div class="flex-1 overflow-auto bg-black/5 dark:bg-white/5 min-h-[160px]">
+            <div class="p-4 text-xs font-mono whitespace-pre-wrap break-all log-pre leading-relaxed"><Ansi>{{ decompressedOutput }}</Ansi></div>
             <div v-if="isWsLoading" class="p-4 text-sm text-muted-foreground italic">连接中...</div>
           </div>
         </div>
@@ -567,7 +576,7 @@ watch(() => route.query, (newQuery) => {
     <!-- 全屏查看日志 -->
     <LogViewer v-model:open="showFullscreen" :title="`日志输出 - ${selectedLog?.task_name || ''}`"
       :content="decompressedOutput" :status="selectedLog?.status" />
-      
+
     <!-- 清空日志确认弹窗 -->
     <AlertDialog :open="showClearDialog" @update:open="showClearDialog = $event">
       <AlertDialogContent>
@@ -579,7 +588,8 @@ watch(() => route.query, (newQuery) => {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>取消</AlertDialogCancel>
-          <AlertDialogAction @click="handleClearLogs" class="bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:text-white dark:hover:bg-red-700">
+          <AlertDialogAction @click="handleClearLogs"
+            class="bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:text-white dark:hover:bg-red-700">
             清空
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -597,7 +607,8 @@ watch(() => route.query, (newQuery) => {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>取消</AlertDialogCancel>
-          <AlertDialogAction @click="handleDeleteLog" class="bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:text-white dark:hover:bg-red-700">
+          <AlertDialogAction @click="handleDeleteLog"
+            class="bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:text-white dark:hover:bg-red-700">
             删除
           </AlertDialogAction>
         </AlertDialogFooter>

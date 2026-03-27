@@ -17,10 +17,16 @@ async function getAuthStatus(force = false): Promise<boolean> {
   return isAuth
 }
 
-// 重置认证状态（登录/登出时调用）
+// 重置认证状态（登出时调用）
 export function resetAuthCache() {
   authChecked = false
   isAuth = false
+}
+
+// 直接设置认证状态（登录成功时调用，避免多余请求）
+export function setAuthCache(status: boolean) {
+  authChecked = true
+  isAuth = status
 }
 
 const router = createRouter({
@@ -45,11 +51,20 @@ const router = createRouter({
         { path: 'languages', name: 'languages', component: () => import('@/views/languages/Languages.vue') },
         { path: 'agents', name: 'agents', component: () => import('@/views/agents/Agents.vue') },
         { path: 'history', name: 'history', component: () => import('@/views/history/History.vue') },
-        { path: 'loginlogs', name: 'loginlogs', component: () => import('@/views/loginlogs/LoginLogs.vue') },
+        { path: 'logs', name: 'logs', component: () => import('@/views/loginlogs/LoginLogs.vue') },
         { path: 'terminal', name: 'terminal', component: () => import('@/views/terminal/Terminal.vue') },
         { path: 'notify', name: 'notify', component: () => import('@/views/notify/Notify.vue') },
         { path: 'settings', name: 'settings', component: () => import('@/views/settings/Settings.vue') }
       ]
+    },
+    {
+      path: '/404',
+      name: '404',
+      component: () => import('@/views/error/NotFound.vue')
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/404'
     }
   ]
 })

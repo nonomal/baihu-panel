@@ -13,13 +13,13 @@ import (
 
 	"github.com/engigu/baihu-panel/internal/constant"
 	"github.com/engigu/baihu-panel/internal/database"
+	"github.com/engigu/baihu-panel/internal/eventbus"
 	"github.com/engigu/baihu-panel/internal/executor"
 	"github.com/engigu/baihu-panel/internal/logger"
 	"github.com/engigu/baihu-panel/internal/models"
 	"github.com/engigu/baihu-panel/internal/utils"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // AgentWSManager 接口定义（避免循环依赖）
@@ -37,21 +37,17 @@ type SettingsService interface {
 // EnvService 接口定义（避免循环依赖）
 type EnvService interface {
 	GetEnvVarsByIDs(ids string) []string
+	GetAllEnvVars() []string
+	GetEnvVarsAndSecretsByIDs(ids string) ([]string, []string)
+	GetAllEnvVarsAndSecrets() ([]string, []string)
 }
 
-// Notifier 通知服务接口定义（避免循环依赖）
-type Notifier interface {
-	TriggerEvent(bindingType string, eventType string, dataID string, templateData map[string]interface{})
-}
-
-// ExecutorService handles task execution and scheduling
 type ExecutorService struct {
 	taskService     *TaskService
 	taskLogService  *TaskLogService
 	agentWSManager  AgentWSManager
 	settingsService SettingsService
 	envService      EnvService
-	notifier        Notifier
 	scheduler       *executor.Scheduler
 	cronManager     *executor.CronManager
 	results         []executor.ExecutionResult
@@ -64,14 +60,12 @@ func (es *ExecutorService) GetScheduler() *executor.Scheduler {
 	return es.scheduler
 }
 
-// NewExecutorService creates a new executor service
 func NewExecutorService(
 	taskService *TaskService,
 	taskLogService *TaskLogService,
 	agentWSManager AgentWSManager,
 	settingsService SettingsService,
 	envService EnvService,
-	notifier Notifier,
 ) *ExecutorService {
 	es := &ExecutorService{
 		taskService:     taskService,
@@ -79,7 +73,6 @@ func NewExecutorService(
 		agentWSManager:  agentWSManager,
 		settingsService: settingsService,
 		envService:      envService,
-		notifier:        notifier,
 		results:         make([]executor.ExecutionResult, 0, 100),
 		stopCh:          make(chan struct{}),
 	}
@@ -143,7 +136,8 @@ func (h *ServerSchedulerHandler) OnTaskExecuting(req *executor.ExecutionRequest)
 	if err != nil {
 		// 并发限制，更新日志状态为失败
 		taskLog.Status = constant.TaskStatusFailed
-		taskLog.Output, _ = utils.CompressToBase64("任务并发数限制，拒绝执行")
+		comp, _ := utils.CompressToBase64("任务并发数限制，拒绝执行")
+		taskLog.Output = models.BigText(comp)
 		h.es.taskLogService.SaveTaskLog(taskLog)
 		return nil, nil, fmt.Errorf("任务并发限制: %v", err)
 	}
@@ -151,7 +145,7 @@ func (h *ServerSchedulerHandler) OnTaskExecuting(req *executor.ExecutionRequest)
 	req.Metadata.GoID = goid
 
 	// 3. 创建 TinyLog 实时日志收集器
-	tl, err := NewTinyLog(taskLog.ID)
+	tl, err := NewTinyLog(taskLog.ID, req.Secrets)
 	if err != nil {
 		h.es.RemoveRunningGo(task.ID, goid) // 回滚运行状态
 		return nil, nil, fmt.Errorf("创建日志收集器失败: %v", err)
@@ -225,9 +219,9 @@ func (h *ServerSchedulerHandler) OnTaskCompleted(req *executor.ExecutionRequest,
 	taskLog := &models.TaskLog{
 		ID:        req.LogID,
 		TaskID:    task.ID,
-		Command:   req.Command,
-		Output:    output,
-		Error:     result.Error,
+		Command:   models.BigText(req.Command),
+		Output:    models.BigText(output),
+		Error:     models.BigText(result.Error),
 		Status:    result.Status,
 		Duration:  result.Duration,
 		ExitCode:  result.ExitCode,
@@ -249,6 +243,8 @@ func (h *ServerSchedulerHandler) OnTaskCompleted(req *executor.ExecutionRequest,
 	// 处理任务完成（更新统计、清理旧日志等）
 	h.es.taskLogService.ProcessTaskCompletion(taskLog)
 
+
+
 	// 更新内存缓冲
 	h.es.UpdateResult(*result)
 
@@ -256,27 +252,32 @@ func (h *ServerSchedulerHandler) OnTaskCompleted(req *executor.ExecutionRequest,
 	h.es.HandleTaskRetry(task, req, result.Success, result.Status, result.ExitCode)
 
 	// ======= 通知触发 =======
-	if h.es.notifier != nil {
-		go func() {
-			var eventType string
-			switch result.Status {
-			case constant.TaskStatusSuccess:
-				eventType = constant.EventTaskSuccess
-			case constant.TaskStatusFailed:
-				eventType = constant.EventTaskFailed
-			case constant.TaskStatusTimeout:
-				eventType = constant.EventTaskTimeout
-			}
-			if eventType != "" {
-				h.es.notifier.TriggerEvent(constant.BindingTypeTask, eventType, task.ID, map[string]interface{}{
-					"task_id":   task.ID,
-					"task_name": task.Name,
-					"status":    result.Status,
-					"duration":  result.Duration,
-				})
-			}
-		}()
-	}
+	// ======= 通知触发 =======
+	go func() {
+		var eventType string
+		switch result.Status {
+		case constant.TaskStatusSuccess:
+			eventType = constant.EventTaskSuccess
+		case constant.TaskStatusFailed:
+			eventType = constant.EventTaskFailed
+		case constant.TaskStatusTimeout:
+			eventType = constant.EventTaskTimeout
+		}
+		if eventType != "" {
+			eventbus.DefaultBus.Publish(eventbus.Event{
+				Type: eventType,
+				Payload: map[string]interface{}{
+					"task_id":    task.ID,
+					"task_name":  task.Name,
+					"status":     result.Status,
+					"start_time": result.StartTime.Format("2006-01-02 15:04:05"),
+					"duration":   result.Duration,
+					"output":     result.Output,
+					"error":      result.Error,
+				},
+			})
+		}
+	}()
 }
 
 func (h *ServerSchedulerHandler) OnTaskFailed(req *executor.ExecutionRequest, err error) {
@@ -305,9 +306,9 @@ func (h *ServerSchedulerHandler) OnTaskFailed(req *executor.ExecutionRequest, er
 	taskLog := &models.TaskLog{
 		ID:        req.LogID,
 		TaskID:    taskID,
-		Command:   req.Command,
-		Output:    output,
-		Error:     err.Error(),
+		Command:   models.BigText(req.Command),
+		Output:    models.BigText(output),
+		Error:     models.BigText(err.Error()),
 		Status:    constant.TaskStatusFailed,
 		Duration:  0,
 		ExitCode:  1,
@@ -338,19 +339,22 @@ func (h *ServerSchedulerHandler) OnTaskFailed(req *executor.ExecutionRequest, er
 	h.es.HandleTaskRetry(task, req, false, constant.TaskStatusFailed, 1)
 
 	// ======= 通知触发 =======
-	if h.es.notifier != nil {
-		go func() {
-			taskName := "未知任务"
-			if task != nil {
-				taskName = task.Name
-			}
-			h.es.notifier.TriggerEvent(constant.BindingTypeTask, constant.EventTaskFailed, taskID, map[string]interface{}{
+	// ======= 通知触发 =======
+	go func() {
+		taskName := "未知任务"
+		if task != nil {
+			taskName = task.Name
+		}
+		eventbus.DefaultBus.Publish(eventbus.Event{
+			Type: constant.EventTaskFailed,
+			Payload: map[string]interface{}{
 				"task_id":   taskID,
 				"task_name": taskName,
 				"error":     err.Error(),
-			})
-		}()
-	}
+				"output":    output,
+			},
+		})
+	}()
 }
 
 // HandleTaskRetry 处理任务失败重试逻辑
@@ -372,15 +376,16 @@ func (es *ExecutorService) HandleTaskRetry(task *models.Task, req *executor.Exec
 					return nil
 				}
 
-				newEnvs := es.loadEnvVars(latestTask.Envs)
+				newEnvs, newSecrets := es.loadEnvVars(latestTask.ID, string(latestTask.Envs))
 				return &executor.ExecutionRequest{
 					TaskID:    req.TaskID,
 					Name:      latestTask.Name,
-					Command:   latestTask.Command,
+					Command:   string(latestTask.Command),
 					WorkDir:   latestTask.WorkDir,
 					Envs:      newEnvs,
+					Secrets:   newSecrets,
 					Timeout:   latestTask.Timeout,
-					Languages: latestTask.Languages,
+					Languages: []map[string]string(latestTask.Languages),
 					UseMise:   latestTask.UseMise(),
 					Type:      executor.TaskTypeManual,
 					Metadata: executor.ExecutionMetadata{
@@ -422,6 +427,10 @@ func (h *LocalTaskHooks) OnHeartbeat(ctx context.Context, logID string, duration
 // ExecuteDispatcher 实现任务分发逻辑
 func (es *ExecutorService) ExecuteDispatcher(ctx context.Context, req *executor.ExecutionRequest, stdout, stderr io.Writer) (*executor.Result, error) {
 	taskID := req.TaskID
+	
+	// 解析路径变量 (如 $SCRIPTS_DIR$)
+	req.Command = es.ResolvePath(req.Command)
+	req.WorkDir = es.ResolvePath(req.WorkDir)
 
 	task := es.taskService.GetTaskByID(taskID)
 	// 系统任务（无 taskID）直接本地执行
@@ -444,14 +453,10 @@ func (es *ExecutorService) ExecuteDispatcher(ctx context.Context, req *executor.
 		}
 	}
 
-	// 加载环境变量
-	if task.Envs != "" {
-		req.Envs = append(req.Envs, es.loadEnvVars(task.Envs)...)
-	}
-
 	// 远程任务
 	if task.AgentID != nil && *task.AgentID != "" {
-		return es.ExecuteRemoteForScheduler(task, req.LogID)
+		// 将请求中已包含的环境变量（已合并）传递给 Agent
+		return es.ExecuteRemoteForScheduler(task, req.LogID, executor.FormatEnvVars(req.Envs), req.Secrets)
 	}
 
 	// 本地任务
@@ -461,7 +466,7 @@ func (es *ExecutorService) ExecuteDispatcher(ctx context.Context, req *executor.
 		WorkDir:   req.WorkDir,
 		Envs:      req.Envs,
 		Timeout:   req.Timeout,
-		Languages: task.Languages,
+		Languages: []map[string]string(task.Languages),
 		UseMise:   req.UseMise, // 使用请求中的 UseMise 标志 (由调度器统一处理过)
 	}, stdout, stderr, hooks)
 }
@@ -487,7 +492,7 @@ func (es *ExecutorService) Stop() {
 
 // StartCron 启动计划任务
 func (es *ExecutorService) StartCron() {
-	es.loadCronTasks()
+	go es.loadCronTasks()
 	es.cronManager.Start()
 	// logger.Info("[Executor] 计划任务管理器已启动")
 }
@@ -504,6 +509,9 @@ func (es *ExecutorService) AddCronTask(task *models.Task) error {
 		es.RemoveCronTask(task.ID) // 如果不是cron类型，确保从调度器移除
 		return nil
 	}
+	// 在加入调度器前，预先加载好环境信息
+	task.RuntimeEnvs, task.RuntimeSecrets = es.loadEnvVars(task.ID, string(task.Envs))
+
 	return es.cronManager.AddTask(task)
 }
 
@@ -540,7 +548,7 @@ func (es *ExecutorService) loadCronTasks() {
 			}(task)
 		} else if task.TriggerType == constant.TriggerTypeCron && task.Schedule != "" && (task.AgentID == nil || *task.AgentID == "") {
 			// 只调度本地任务（agent_id 为空或 0）的定时任务
-			err := es.cronManager.AddTask(&task)
+			err := es.AddCronTask(&task)
 			if err != nil {
 				continue
 			}
@@ -583,7 +591,7 @@ func (es *ExecutorService) ExecuteTask(taskID string, extraEnvs []string) *execu
 		}
 	}
 
-	envs := es.loadEnvVars(task.Envs)
+	envs, secrets := es.loadEnvVars(task.ID, string(task.Envs))
 	if len(extraEnvs) > 0 {
 		envs = append(envs, extraEnvs...)
 	}
@@ -591,11 +599,12 @@ func (es *ExecutorService) ExecuteTask(taskID string, extraEnvs []string) *execu
 	req := &executor.ExecutionRequest{
 		TaskID:    task.ID,
 		Name:      task.Name,
-		Command:   task.Command,
+		Command:   string(task.Command),
 		WorkDir:   task.WorkDir,
 		Envs:      envs,
+		Secrets:   secrets,
 		Timeout:   task.Timeout,
-		Languages: task.Languages,
+		Languages: []map[string]string(task.Languages),
 		UseMise:   task.UseMise(),
 		Type:      executor.TaskTypeManual,
 	}
@@ -613,7 +622,8 @@ func (es *ExecutorService) ExecuteTask(taskID string, extraEnvs []string) *execu
 // StopTaskExecution stops a running task execution by LogID
 func (es *ExecutorService) StopTaskExecution(logID string) error {
 	var taskLog models.TaskLog
-	if err := database.DB.First(&taskLog, logID).Error; err != nil {
+	res := database.DB.Where("id = ?", logID).Limit(1).Find(&taskLog)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return fmt.Errorf("日志不存在")
 	}
 
@@ -746,17 +756,21 @@ func (es *ExecutorService) CleanupRunningTasks() error {
 // CheckConcurrency 检查任务并发限制（只读检查）
 func (es *ExecutorService) CheckConcurrency(taskID string) error {
 	var task models.Task
-	if err := database.DB.Select("config, running_go").Where("id = ?", taskID).First(&task).Error; err != nil {
-		return err
+	res := database.DB.Select("config, running_go").Where("id = ?", taskID).Limit(1).Find(&task)
+	if res.Error != nil || res.RowsAffected == 0 {
+		if res.Error != nil {
+			return res.Error
+		}
+		return gorm.ErrRecordNotFound
 	}
 	var goids []int64
-	if task.RunningGo != "" {
-		_ = json.Unmarshal([]byte(task.RunningGo), &goids)
+	if string(task.RunningGo) != "" {
+		_ = json.Unmarshal([]byte(string(task.RunningGo)), &goids)
 	}
-
-	var config models.TaskConfig
-	if task.Config != "" {
-		_ = json.Unmarshal([]byte(task.Config), &config)
+ 
+ 	var config models.TaskConfig
+	if string(task.Config) != "" {
+		_ = json.Unmarshal([]byte(string(task.Config)), &config)
 	}
 
 	if config.Concurrency == 0 && len(goids) > 0 {
@@ -768,64 +782,91 @@ func (es *ExecutorService) CheckConcurrency(taskID string) error {
 // AddRunningGo 添加当前 goroutine ID 到任务的 running_go 字段
 func (es *ExecutorService) AddRunningGo(taskID string) (int64, error) {
 	goid := utils.GetGoroutineID()
-	err := database.DB.Transaction(func(tx *gorm.DB) error {
-		var task models.Task
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", taskID).First(&task).Error; err != nil {
-			return err
-		}
-		var goids []int64
-		if task.RunningGo != "" {
-			_ = json.Unmarshal([]byte(task.RunningGo), &goids)
-		}
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		lastErr = database.DB.Transaction(func(tx *gorm.DB) error {
+			var task models.Task
+			res := tx.Where("id = ?", taskID).Limit(1).Find(&task)
+			if res.Error != nil || res.RowsAffected == 0 {
+				if res.Error != nil {
+					return res.Error
+				}
+				return gorm.ErrRecordNotFound
+			}
+			var goids []int64
+			if task.RunningGo != "" {
+				_ = json.Unmarshal([]byte(task.RunningGo), &goids)
+			}
 
-		// 解析配置以获取并发设置
-		var config models.TaskConfig
-		if task.Config != "" {
-			_ = json.Unmarshal([]byte(task.Config), &config)
-		}
+			// 解析配置以获取并发设置
+			var config models.TaskConfig
+			if task.Config != "" {
+				_ = json.Unmarshal([]byte(task.Config), &config)
+			}
 
-		// 如果并发为0(禁用)且已有执行中的任务，返回错误
-		if config.Concurrency == 0 && len(goids) > 0 {
-			return fmt.Errorf("task is running")
-		}
+			// 如果并发为0(禁用)且已有执行中的任务，返回错误
+			if config.Concurrency == 0 && len(goids) > 0 {
+				return fmt.Errorf("task is running")
+			}
 
-		goids = append(goids, goid)
-		data, _ := json.Marshal(goids)
-		return tx.Model(&task).Update("running_go", string(data)).Error
-	})
-	return goid, err
+			goids = append(goids, goid)
+			data, _ := json.Marshal(goids)
+			return tx.Model(&task).Update("running_go", models.BigText(data)).Error
+		})
+		if lastErr == nil {
+			return goid, nil
+		}
+		// 如果是业务错误（任务正在运行），不重试
+		if lastErr.Error() == "task is running" {
+			return goid, lastErr
+		}
+		// 数据库锁错误，等待后重试
+		time.Sleep(100 * time.Millisecond)
+	}
+	return goid, fmt.Errorf("任务并发限制: %v", lastErr)
 }
 
 // RemoveRunningGo 从任务的 running_go 字段移除指定 goroutine ID
 func (es *ExecutorService) RemoveRunningGo(taskID string, goid int64) {
-	database.DB.Transaction(func(tx *gorm.DB) error {
-		var task models.Task
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", taskID).First(&task).Error; err != nil {
-			return err
-		}
-		var goids []int64
-		if task.RunningGo != "" {
-			_ = json.Unmarshal([]byte(task.RunningGo), &goids)
-		}
-		newGoids := make([]int64, 0)
-		for _, id := range goids {
-			if id != goid {
-				newGoids = append(newGoids, id)
+	for attempt := 0; attempt < 3; attempt++ {
+		err := database.DB.Transaction(func(tx *gorm.DB) error {
+			var task models.Task
+			res := tx.Where("id = ?", taskID).Limit(1).Find(&task)
+			if res.Error != nil || res.RowsAffected == 0 {
+				if res.Error != nil {
+					return res.Error
+				}
+				return gorm.ErrRecordNotFound
 			}
+			var goids []int64
+			if task.RunningGo != "" {
+				_ = json.Unmarshal([]byte(task.RunningGo), &goids)
+			}
+			newGoids := make([]int64, 0)
+			for _, id := range goids {
+				if id != goid {
+					newGoids = append(newGoids, id)
+				}
+			}
+			data, _ := json.Marshal(newGoids)
+			return tx.Model(&task).Update("running_go", string(data)).Error
+		})
+		if err == nil {
+			return
 		}
-		data, _ := json.Marshal(newGoids)
-		return tx.Model(&task).Update("running_go", string(data)).Error
-	})
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 // ExecuteRemoteForScheduler 供 Scheduler 调用，执行远程任务并等待结果
-func (es *ExecutorService) ExecuteRemoteForScheduler(task *models.Task, logID string) (*executor.Result, error) {
+func (es *ExecutorService) ExecuteRemoteForScheduler(task *models.Task, logID string, envs string, secrets []string) (*executor.Result, error) {
 	agentID := *task.AgentID
 	logger.Infof("[Executor] 远程执行任务 #%s: %s (Agent #%s, LogID: %s)", task.ID, task.Name, agentID, logID)
 
 	// 1. 检查 Agent 状态
 	var agent models.Agent
-	if err := database.DB.Where("id = ?", agentID).First(&agent).Error; err != nil {
+	res := database.DB.Where("id = ?", agentID).Limit(1).Find(&agent)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return nil, fmt.Errorf("Agent #%s 不存在", agentID)
 	}
 	if !agent.Enabled {
@@ -843,6 +884,8 @@ func (es *ExecutorService) ExecuteRemoteForScheduler(task *models.Task, logID st
 	err := es.agentWSManager.SendToAgent(agentID, constant.WSTypeExecute, map[string]interface{}{
 		"task_id": task.ID,
 		"log_id":  logID,
+		"envs":    envs,
+		"secrets": secrets,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("发送执行命令失败: %v", err)
@@ -932,23 +975,105 @@ func (es *ExecutorService) BuildRepoCommand(task *models.Task) (string, string) 
 	if config.AuthToken != "" {
 		args = append(args, "--auth-token", config.AuthToken)
 	}
+	if config.WhitelistPaths != "" {
+		args = append(args, "--whitelist-paths", config.WhitelistPaths)
+	}
+	if config.Blacklist != "" {
+		args = append(args, "--blacklist", config.Blacklist)
+	}
+	if config.Dependence != "" {
+		args = append(args, "--dependence", config.Dependence)
+	}
+	if config.Extensions != "" {
+		args = append(args, "--extensions", config.Extensions)
+	}
+	
+	// 传递任务 ID，以便 reposync 内部直接处理脚本注册并输出日志
+	args = append(args, "--task-id", task.ID)
+	args = append(args, "--task-timeout", fmt.Sprintf("%d", task.Timeout))
+	if langData, err := json.Marshal(task.Languages); err == nil {
+		args = append(args, "--task-langs", string(langData))
+	}
 
-	return exePath + " " + strings.Join(args, " "), filepath.Dir(exePath)
+	// 为了防止 shell 解释特殊字符（如 |），对每个参数进行转义/加引号
+	quotedArgs := make([]string, len(args))
+	for i, arg := range args {
+		quotedArgs[i] = utils.QuotePath(arg)
+	}
+
+	cmdStr := utils.QuotePath(exePath) + " " + strings.Join(quotedArgs, " ")
+	return buildRepoCommandEnvPrefix()+cmdStr, filepath.Dir(exePath)
 }
 
-// loadEnvVars 加载环境变量
-func (es *ExecutorService) loadEnvVars(envIDs string) []string {
+// loadEnvVars 加载环境变量和掩码信息，支持全局注入及重名合并
+func (es *ExecutorService) loadEnvVars(taskID string, envIDs string) ([]string, []string) {
+	// 1. 检查是否开启了注入全部环境变量
+	if taskID != "" && es.taskService != nil {
+		task := es.taskService.GetTaskByID(taskID)
+		if task != nil && task.Config != "" {
+			var config models.TaskConfig
+			if err := json.Unmarshal([]byte(task.Config), &config); err == nil {
+				if config.AllEnvs {
+					if es.envService != nil {
+						return es.envService.GetAllEnvVarsAndSecrets()
+					}
+				}
+			}
+		}
+	}
+
+	// 2. 否则按 ID 列表进行加载（支持合并逻辑在 envService 中处理）
 	if envIDs == "" {
-		return nil
+		return nil, nil
 	}
 
-	var envVars []models.EnvironmentVariable
-	ids := strings.Split(envIDs, ",")
-	database.DB.Where("id IN ?", ids).Find(&envVars)
-
-	result := make([]string, 0, len(envVars))
-	for _, env := range envVars {
-		result = append(result, fmt.Sprintf("%s=%s", env.Name, env.Value))
+	if es.envService != nil {
+		return es.envService.GetEnvVarsAndSecretsByIDs(envIDs)
 	}
-	return result
+
+	return nil, nil
+}
+
+func (es *ExecutorService) ResolvePath(path string) string {
+	absScriptsDir := resolveAbsScriptsDir()
+	return strings.ReplaceAll(path, "$SCRIPTS_DIR$", absScriptsDir)
+}
+
+func buildRepoCommandEnvPrefix() string {
+	absConfig, err := filepath.Abs(constant.ConfigPath)
+	if err != nil {
+		absConfig = constant.ConfigPath
+	}
+
+	absScriptsDir := resolveAbsScriptsDir()
+	return "BH_CONFIG_PATH='" + strings.ReplaceAll(absConfig, "'", "'\\''") + "' BH_SCRIPTS_DIR='" + strings.ReplaceAll(absScriptsDir, "'", "'\\''") + "' "
+}
+
+func resolveAbsScriptsDir() string {
+	if scriptsDir := os.Getenv("BH_SCRIPTS_DIR"); scriptsDir != "" {
+		if filepath.IsAbs(scriptsDir) {
+			return filepath.Clean(scriptsDir)
+		}
+		if absScriptsDir, err := filepath.Abs(scriptsDir); err == nil {
+			return absScriptsDir
+		}
+		return filepath.Clean(scriptsDir)
+	}
+
+	if configPath := os.Getenv("BH_CONFIG_PATH"); configPath != "" {
+		if !filepath.IsAbs(configPath) {
+			if absConfigPath, err := filepath.Abs(configPath); err == nil {
+				configPath = absConfigPath
+			}
+		}
+
+		projectRoot := filepath.Dir(filepath.Dir(configPath))
+		return filepath.Clean(filepath.Join(projectRoot, constant.ScriptsWorkDir))
+	}
+
+	if absScriptsDir, err := filepath.Abs(constant.ScriptsWorkDir); err == nil {
+		return absScriptsDir
+	}
+
+	return filepath.Clean(constant.ScriptsWorkDir)
 }

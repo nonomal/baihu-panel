@@ -76,6 +76,7 @@ const channelConfigFields: Record<string, { key: string; label: string; required
   ],
   Custom: [
     { key: 'webhook', label: 'Webhook URL', required: true, placeholder: 'https://...' },
+    { key: 'headers', label: '请求头', required: false, placeholder: 'JSON格式，如 {"Authorization": "Bearer ..."}', type: 'textarea' },
     { key: 'body', label: '请求体模板', required: false, placeholder: '使用 TEXT 作为消息内容占位符', type: 'textarea' },
   ],
   Ntfy: [
@@ -112,6 +113,15 @@ const channelConfigFields: Record<string, { key: string; label: string; required
     { key: 'region_id', label: '区域ID', required: false, placeholder: '默认 cn-hangzhou' },
     { key: 'phone_number', label: '手机号码', required: true },
     { key: 'template_code', label: '短信模板 CODE', required: true },
+  ],
+  PushPlus: [
+    { key: 'token', label: 'Token', required: true, placeholder: 'PushPlus Token' },
+    { key: 'topic', label: '群组编码', required: false, placeholder: '可选，一对多推送' },
+    { key: 'template', label: '推送模板', required: false, placeholder: 'html, txt, json, markdown' },
+    { key: 'channel', label: '推送渠道', required: false, placeholder: 'wechat, dingding, feishu, mail等' },
+    { key: 'webhook', label: 'Webhook', required: false },
+    { key: 'callback_url', label: '回调地址', required: false },
+    { key: 'to', label: '好友令牌', required: false },
   ],
 }
 
@@ -312,10 +322,10 @@ onMounted(() => {
           <h2 class="text-xl sm:text-2xl font-bold tracking-tight">消息推送</h2>
           <p class="text-muted-foreground text-sm">配置通知渠道，绑定系统事件实现自动推送</p>
         </div>
-        <TabsList class="w-full sm:w-auto grid grid-cols-3 sm:inline-flex h-9 gap-1 p-1">
-          <TabsTrigger value="channels" class="text-xs px-3 py-1">渠道管理</TabsTrigger>
-          <TabsTrigger value="events" class="text-xs px-3 py-1">事件绑定</TabsTrigger>
-          <TabsTrigger value="api" class="text-xs px-3 py-1">脚本调用</TabsTrigger>
+        <TabsList class="grid grid-cols-3 w-full sm:w-auto min-w-[300px]">
+          <TabsTrigger value="channels">渠道管理</TabsTrigger>
+          <TabsTrigger value="events">事件绑定</TabsTrigger>
+          <TabsTrigger value="api">脚本调用</TabsTrigger>
         </TabsList>
       </div>
 
@@ -336,6 +346,8 @@ onMounted(() => {
         <ApiUsage :channels="channels" :channel-types="channelTypes" :api-token="apiToken"
           @generate-token="generateApiToken" @copy-token="copyApiToken" @copy-example="copyApiExample" />
       </TabsContent>
+
+
     </Tabs>
 
     <!-- 添加/编辑渠道弹窗 -->

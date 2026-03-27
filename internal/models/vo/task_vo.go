@@ -19,8 +19,9 @@ type TaskVO struct {
 	WorkDir     string              `json:"work_dir"`
 	CleanConfig string              `json:"clean_config"`
 	Envs        string              `json:"envs"`
-	Languages   []map[string]string `json:"languages"`
+	Languages   models.TaskLanguages `json:"languages"`
 	AgentID     *string             `json:"agent_id"`
+	RepoTaskID  string              `json:"repo_task_id"`
 	Enabled       bool                `json:"enabled"`
 	RetryCount    int                 `json:"retry_count"`
 	RetryInterval int                 `json:"retry_interval"`
@@ -39,18 +40,19 @@ func ToTaskVO(task *models.Task) *TaskVO {
 	return &TaskVO{
 		ID:          task.ID,
 		Name:        task.Name,
-		Command:     task.Command,
+		Command:     string(task.Command),
 		Tags:        task.Tags,
 		Type:        task.Type,
 		TriggerType: task.TriggerType,
-		Config:      task.Config,
+		Config:      string(task.Config),
 		Schedule:    task.Schedule,
 		Timeout:     task.Timeout,
 		WorkDir:     task.WorkDir,
 		CleanConfig: task.CleanConfig,
-		Envs:        task.Envs,
+		Envs:        string(task.Envs),
 		Languages:   task.Languages,
 		AgentID:       task.AgentID,
+		RepoTaskID:    task.RepoTaskID,
 		Enabled:       task.Enabled,
 		RetryCount:    task.RetryCount,
 		RetryInterval: task.RetryInterval,
@@ -112,15 +114,15 @@ func ToTaskLogVO(log *models.TaskLog) *TaskLogVO {
 		ID:        log.ID,
 		TaskID:    log.TaskID,
 		AgentID:   log.AgentID,
-		Command:   log.Command,
-		Error:     log.Error,
+		Command:   string(log.Command),
+		Error:     string(log.Error),
 		Status:    log.Status,
 		Duration:  log.Duration,
 		ExitCode:  log.ExitCode,
 		StartTime: log.StartTime,
 		EndTime:   log.EndTime,
 		CreatedAt: log.CreatedAt,
-		Output:    log.Output,
+		Output:    string(log.Output),
 	}
 }
 

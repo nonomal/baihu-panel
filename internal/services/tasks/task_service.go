@@ -13,7 +13,16 @@ func NewTaskService() *TaskService {
 	return &TaskService{}
 }
 
-func (ts *TaskService) CreateTask(name, command, schedule string, timeout int, workDir, cleanConfig, envs, taskType, config string, agentID *string, languages []map[string]string, triggerType string, tags string, retryCount int, retryInterval int, randomRange int) *models.Task {
+func (ts *TaskService) GetTaskBySourceID(sourceID string) *models.Task {
+	var task models.Task
+	res := database.DB.Where("source_id = ?", sourceID).Limit(1).Find(&task)
+	if res.Error != nil || res.RowsAffected == 0 {
+		return nil
+	}
+	return &task
+}
+
+func (ts *TaskService) CreateTask(name, command, schedule string, timeout int, workDir, cleanConfig, envs, taskType, config string, agentID *string, languages models.TaskLanguages, triggerType string, tags string, retryCount int, retryInterval int, randomRange int, sourceID string) *models.Task {
 	if taskType == "" {
 		taskType = "task"
 	}
@@ -23,22 +32,23 @@ func (ts *TaskService) CreateTask(name, command, schedule string, timeout int, w
 	task := &models.Task{
 		ID:            utils.GenerateID(),
 		Name:          name,
-		Command:       command,
+		Command:       models.BigText(command),
 		Tags:          tags,
 		Type:          taskType,
 		TriggerType:   triggerType,
-		Config:        config,
+		Config:        models.BigText(config),
 		Schedule:      schedule,
 		Timeout:       timeout,
 		WorkDir:       workDir,
 		CleanConfig:   cleanConfig,
-		Envs:          envs,
+		Envs:          models.BigText(envs),
 		Languages:     languages,
 		AgentID:       agentID,
 		Enabled:       true,
 		RetryCount:    retryCount,
 		RetryInterval: retryInterval,
 		RandomRange:   randomRange,
+		SourceID:      sourceID,
 		CreatedAt:     models.Now(),
 		UpdatedAt:     models.Now(),
 	}
@@ -82,28 +92,31 @@ func (ts *TaskService) GetTasksWithPagination(page, pageSize int, name string, a
 
 func (ts *TaskService) GetTaskByID(id string) *models.Task {
 	var task models.Task
-	if err := database.DB.Where("id = ?", id).First(&task).Error; err != nil {
+	res := database.DB.Where("id = ?", id).Limit(1).Find(&task)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return nil
 	}
 	return &task
 }
 
-func (ts *TaskService) UpdateTask(id string, name, command, schedule string, timeout int, workDir, cleanConfig, envs string, enabled bool, taskType, config string, agentID *string, languages []map[string]string, triggerType string, tags string, retryCount int, retryInterval int, randomRange int) *models.Task {
+func (ts *TaskService) UpdateTask(id string, name, command, schedule string, timeout int, workDir, cleanConfig, envs string, enabled bool, taskType, config string, agentID *string, languages models.TaskLanguages, triggerType string, tags string, retryCount int, retryInterval int, randomRange int, sourceID string) *models.Task {
 	var task models.Task
-	if err := database.DB.Where("id = ?", id).First(&task).Error; err != nil {
+	res := database.DB.Where("id = ?", id).Limit(1).Find(&task)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return nil
 	}
 	task.Name = name
-	task.Command = command
+	task.Command = models.BigText(command)
 	task.Tags = tags
 	task.Schedule = schedule
 	task.Timeout = timeout
 	task.WorkDir = workDir
 	task.CleanConfig = cleanConfig
-	task.Envs = envs
+	task.Envs = models.BigText(envs)
 	task.Enabled = enabled
 	task.AgentID = agentID
 	task.Languages = languages
+	task.Config = models.BigText(config)
 	task.RetryCount = retryCount
 	task.RetryInterval = retryInterval
 	task.RandomRange = randomRange
@@ -113,12 +126,15 @@ func (ts *TaskService) UpdateTask(id string, name, command, schedule string, tim
 	if triggerType != "" {
 		task.TriggerType = triggerType
 	}
+	if sourceID != "" {
+		task.SourceID = sourceID
+	}
 
 	database.DB.Model(&task).Select(
 		"Name", "Command", "Tags", "Schedule", "Timeout", "WorkDir",
 		"CleanConfig", "Envs", "Enabled", "AgentID", "Languages",
 		"RetryCount", "RetryInterval", "RandomRange", "Type",
-		"TriggerType", "Config",
+		"TriggerType", "Config", "SourceID",
 	).Updates(&task)
 	return &task
 }
@@ -127,6 +143,14 @@ func (ts *TaskService) DeleteTask(id string) bool {
 	// 同时删除关联的通知推送设置
 	database.DB.Where("type = ? AND data_id = ?", constant.BindingTypeTask, id).Delete(&models.NotifyBinding{})
 	
-	result := database.DB.Where("id = ?", id).Delete(&models.Task{})
+	result := database.DB.Unscoped().Where("id = ?", id).Delete(&models.Task{})
 	return result.RowsAffected > 0
+}
+
+func (ts *TaskService) BatchDeleteTasks(ids []string) int64 {
+	// 同时删除关联的通知推送设置
+	database.DB.Where("type = ? AND data_id IN ?", constant.BindingTypeTask, ids).Delete(&models.NotifyBinding{})
+	
+	result := database.DB.Unscoped().Where("id IN ?", ids).Delete(&models.Task{})
+	return result.RowsAffected
 }

@@ -3,6 +3,7 @@ package services
 import (
 	"strings"
 
+	"github.com/engigu/baihu-panel/internal/constant"
 	"github.com/engigu/baihu-panel/internal/database"
 	"github.com/engigu/baihu-panel/internal/models"
 	"github.com/engigu/baihu-panel/internal/utils"
@@ -16,13 +17,21 @@ func NewEnvService() *EnvService {
 	return &EnvService{}
 }
 
-func (es *EnvService) CreateEnvVar(name, value, remark string, hidden bool, userID string) *models.EnvironmentVariable {
+func (es *EnvService) CreateEnvVar(name, value, remark, envType string, hidden, enabled bool, userID string) *models.EnvironmentVariable {
+	if envType == constant.EnvTypeSecret {
+		if encValue, err := utils.Encrypt(value); err == nil {
+			value = encValue
+		}
+	}
+
 	env := &models.EnvironmentVariable{
 		ID:        utils.GenerateID(),
 		Name:      name,
-		Value:     value,
+		Value:     models.BigText(value),
 		Remark:    remark,
+		Type:      envType,
 		Hidden:    hidden,
+		Enabled:   enabled,
 		UserID:    userID,
 		CreatedAt: models.Now(),
 		UpdatedAt: models.Now(),
@@ -37,13 +46,22 @@ func (es *EnvService) GetEnvVarsByUserID(userID string) []models.EnvironmentVari
 	return envs
 }
 
-func (es *EnvService) GetEnvVarsWithPagination(userID string, name string, page, pageSize int) ([]models.EnvironmentVariable, int64) {
+// GetFormattedEnvVarsByUserID 获取用户环境变量并格式化为 NAME=VALUE 格式（支持重名合并）
+func (es *EnvService) GetFormattedEnvVarsByUserID(userID string) []string {
+	envs := es.GetEnvVarsByUserID(userID)
+	return es.formatEnvVars(envs)
+}
+
+func (es *EnvService) GetEnvVarsWithPagination(userID string, name string, envType string, page, pageSize int) ([]models.EnvironmentVariable, int64) {
 	var envs []models.EnvironmentVariable
 	var total int64
 
 	query := database.DB.Model(&models.EnvironmentVariable{}).Where("user_id = ?", userID)
 	if name != "" {
 		query = query.Where("name LIKE ?", "%"+name+"%")
+	}
+	if envType != "" {
+		query = query.Where("type = ?", envType)
 	}
 
 	query.Count(&total)
@@ -53,22 +71,36 @@ func (es *EnvService) GetEnvVarsWithPagination(userID string, name string, page,
 
 func (es *EnvService) GetEnvVarByID(id string) *models.EnvironmentVariable {
 	var env models.EnvironmentVariable
-	if err := database.DB.Where("id = ?", id).First(&env).Error; err != nil {
+	res := database.DB.Where("id = ?", id).Limit(1).Find(&env)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return nil
 	}
 	return &env
 }
 
-func (es *EnvService) UpdateEnvVar(id string, name, value, remark string, hidden bool) *models.EnvironmentVariable {
+func (es *EnvService) UpdateEnvVar(id string, name, value, remark, envType string, hidden, enabled bool) *models.EnvironmentVariable {
 	var env models.EnvironmentVariable
-	if err := database.DB.Where("id = ?", id).First(&env).Error; err != nil {
+	res := database.DB.Where("id = ?", id).Limit(1).Find(&env)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return nil
 	}
+
+	if envType == constant.EnvTypeSecret && value != "********" && value != "" {
+		if encValue, err := utils.Encrypt(value); err == nil {
+			value = encValue
+		}
+	} else if envType == constant.EnvTypeSecret && (value == "********" || value == "") {
+		// Keep the original encrypted value
+		value = string(env.Value)
+	}
+
 	updates := map[string]interface{}{
-		"name":   name,
-		"value":  value,
-		"remark": remark,
-		"hidden": hidden,
+		"name":    name,
+		"value":   models.BigText(value),
+		"remark":  remark,
+		"type":    envType,
+		"hidden":  hidden,
+		"enabled": enabled,
 	}
 	database.DB.Model(&env).Updates(updates)
 	return &env
@@ -92,7 +124,7 @@ func (es *EnvService) DeleteEnvVar(id string, force bool) (bool, []models.Task) 
 		err := database.DB.Transaction(func(tx *gorm.DB) error {
 			// Update tasks to remove this env ID
 			for _, task := range associatedTasks {
-				ids := splitEnvIDs(task.Envs)
+				ids := splitEnvIDs(string(task.Envs))
 				var newIDs []string
 				for _, eid := range ids {
 					if eid != id {
@@ -118,20 +150,150 @@ func (es *EnvService) DeleteEnvVar(id string, force bool) (bool, []models.Task) 
 }
 
 // GetEnvVarsByIDs 根据逗号分隔的ID字符串获取环境变量列表，返回 NAME=VALUE 格式
+// 如果存在重名变量，会类似青龙面板一样使用 & 拼接
 func (es *EnvService) GetEnvVarsByIDs(envIDs string) []string {
 	if envIDs == "" {
 		return nil
 	}
 
-	var envVars []string
 	ids := splitEnvIDs(envIDs)
+	var envs []models.EnvironmentVariable
 	for _, id := range ids {
 		env := es.GetEnvVarByID(id)
 		if env != nil {
-			envVars = append(envVars, env.Name+"="+env.Value)
+			envs = append(envs, *env)
 		}
 	}
-	return envVars
+
+	return es.formatEnvVars(envs)
+}
+
+// GetEnvVarsAndSecretsByIDs 根据逗号分隔的ID字符串获取环境变量列表和安全机密值列表
+func (es *EnvService) GetEnvVarsAndSecretsByIDs(envIDs string) ([]string, []string) {
+	if envIDs == "" {
+		return nil, nil
+	}
+
+	ids := splitEnvIDs(envIDs)
+	var envs []models.EnvironmentVariable
+	for _, id := range ids {
+		env := es.GetEnvVarByID(id)
+		if env != nil {
+			envs = append(envs, *env)
+		}
+	}
+
+	return es.formatEnvVarsAndSecrets(envs)
+}
+
+// GetAllEnvVars获取系统中所有的环境变量，并按 NAME=VALUE 格式返回
+func (es *EnvService) GetAllEnvVars() []string {
+	var envs []models.EnvironmentVariable
+	if err := database.DB.Find(&envs).Error; err != nil {
+		return nil
+	}
+	return es.formatEnvVars(envs)
+}
+
+// GetAllEnvVarsAndSecrets 获取系统中所有的环境变量和安全机密值列表
+func (es *EnvService) GetAllEnvVarsAndSecrets() ([]string, []string) {
+	var envs []models.EnvironmentVariable
+	if err := database.DB.Find(&envs).Error; err != nil {
+		return nil, nil
+	}
+	return es.formatEnvVarsAndSecrets(envs)
+}
+
+// formatEnvVars 将环境变量列表格式化为 NAME=VALUE 数组，并处理重名合并 (过滤掉所有的 Secret)
+func (es *EnvService) formatEnvVars(envs []models.EnvironmentVariable) []string {
+	if len(envs) == 0 {
+		return nil
+	}
+
+	type mergedEnv struct {
+		name   string
+		values []string
+	}
+	var mergedList []mergedEnv
+	nameToIndex := make(map[string]int)
+
+	for _, env := range envs {
+		// 非调度器入口，直接当做没有（跳过 Secret）
+		if env.Type == constant.EnvTypeSecret {
+			continue
+		}
+
+		value := string(env.Value)
+		if !env.Enabled {
+			value = ""
+		}
+
+		if idx, ok := nameToIndex[env.Name]; ok {
+			mergedList[idx].values = append(mergedList[idx].values, value)
+		} else {
+			nameToIndex[env.Name] = len(mergedList)
+			mergedList = append(mergedList, mergedEnv{
+				name:   env.Name,
+				values: []string{value},
+			})
+		}
+	}
+
+	var result []string
+	for _, item := range mergedList {
+		val := strings.Join(item.values, "&")
+		result = append(result, item.name+"="+val)
+	}
+	return result
+}
+
+// formatEnvVarsAndSecrets 将环境变量列表格式化为 NAME=VALUE 数组，并提取明文安全机密列表
+func (es *EnvService) formatEnvVarsAndSecrets(envs []models.EnvironmentVariable) ([]string, []string) {
+	if len(envs) == 0 {
+		return nil, nil
+	}
+
+	type mergedEnv struct {
+		name   string
+		values []string
+	}
+	var mergedList []mergedEnv
+	var secrets []string
+	nameToIndex := make(map[string]int)
+
+	for _, env := range envs {
+		value := string(env.Value)
+		if env.Type == constant.EnvTypeSecret {
+			if decValue, err := utils.Decrypt(value); err == nil {
+				value = decValue
+				if env.Enabled && value != "" {
+					secrets = append(secrets, value)
+				}
+			}
+		}
+
+		if !env.Enabled {
+			value = ""
+		}
+
+		if idx, ok := nameToIndex[env.Name]; ok {
+			mergedList[idx].values = append(mergedList[idx].values, value)
+		} else {
+			nameToIndex[env.Name] = len(mergedList)
+			mergedList = append(mergedList, mergedEnv{
+				name:   env.Name,
+				values: []string{value},
+			})
+		}
+	}
+
+	var result []string
+	for _, item := range mergedList {
+		// 多个值使用 & 拼接
+		val := strings.Join(item.values, "&")
+		result = append(result, item.name+"="+val)
+	}
+	return result, secrets
 }
 
 // splitEnvIDs 解析逗号分隔的ID字符串

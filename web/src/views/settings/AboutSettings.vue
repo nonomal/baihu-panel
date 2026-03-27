@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { Badge } from '@/components/ui/badge'
-import { ExternalLink } from 'lucide-vue-next'
+import { ExternalLink, TriangleAlert, History } from 'lucide-vue-next'
 import { api, type AboutInfo } from '@/api'
 
 const aboutInfo = ref<AboutInfo | null>(null)
@@ -21,9 +21,16 @@ onMounted(loadAbout)
 <template>
   <div>
     <!-- 站点关于 -->
-    <div class="mb-6">
-      <h3 class="text-lg font-semibold mb-1">白虎面板 (Baihu Panel)</h3>
-      <p class="text-sm text-muted-foreground">极致轻量、高性能的自动化任务调度平台。深度集成 Mise 运行时管理，支持多语言环境动态切换与全自动依赖管理。</p>
+    <div class="mb-8 flex flex-col sm:flex-row justify-between items-start gap-4">
+      <div class="flex-1 min-w-0">
+        <h3 class="text-xl font-bold mb-1.5">白虎面板 (Baihu Panel)</h3>
+        <p class="text-sm text-muted-foreground leading-relaxed">极致轻量、高性能的自动化任务调度平台。深度集成 Mise 运行时管理，支持多语言环境动态切换与全自动依赖管理。</p>
+      </div>
+      <a href="https://engigu.github.io/baihu-panel/guide/changelog.html" target="_blank"
+        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-semibold hover:bg-primary/10 transition-all whitespace-nowrap shadow-sm shadow-primary/5">
+        <History class="h-3.5 w-3.5" />
+        查看更新日志
+      </a>
     </div>
 
     <div class="grid sm:grid-cols-2 gap-x-8 gap-y-5">
@@ -51,8 +58,19 @@ onMounted(loadAbout)
         <h4 class="text-sm font-medium mb-2">系统信息</h4>
         <div class="space-y-2">
           <div class="flex justify-between items-center">
-            <span class="text-muted-foreground text-sm">系统版本:</span>
-            <Badge variant="outline" class="font-mono text-xs">{{ aboutInfo?.version || 'dev' }}</Badge>
+            <span class="text-muted-foreground text-sm">当前版本:</span>
+            <div class="flex items-center gap-1.5">
+              <span class="text-sm font-medium">{{ aboutInfo?.version || 'dev' }}</span>
+              <Badge v-if="aboutInfo?.remote_version && aboutInfo.remote_version === aboutInfo.version" variant="secondary"
+                class="text-[10px] h-4 px-1 bg-green-500/10 text-green-600 border-green-500/20 shadow-none">
+                最新版本
+              </Badge>
+            </div>
+          </div>
+          <div v-if="aboutInfo?.remote_version && aboutInfo.remote_version !== aboutInfo.version"
+            class="flex justify-between items-center">
+            <span class="text-muted-foreground text-sm">最新版本:</span>
+            <span class="text-sm font-medium text-primary">{{ aboutInfo.remote_version }}</span>
           </div>
           <div class="flex justify-between items-center">
             <span class="text-muted-foreground text-sm">构建时间:</span>
@@ -71,6 +89,19 @@ onMounted(loadAbout)
             <span class="text-sm">{{ aboutInfo?.uptime || '-' }}</span>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="mt-8 p-4 bg-muted/40 rounded-lg border border-yellow-500/20">
+      <h4 class="text-sm font-semibold text-yellow-600 dark:text-yellow-500 mb-2 flex items-center gap-1.5">
+        <TriangleAlert class="h-4 w-4" />
+        免责声明
+      </h4>
+      <div class="space-y-1.5 text-xs text-muted-foreground">
+        <p>本项目不提供、不内置任何具有实际业务逻辑的第三方脚本。</p>
+        <p><strong>请勿轻易执行任何来源不明或不可信的外部脚本。</strong></p>
+        <p>所有脚本及代码均需由用户自行添加或配置，用户须自行审核以确保其安全性。本项目仅作为基础调度工具，<strong class="text-foreground/70">无法且不保证任何被执行任务的安全性</strong>。</p>
+        <p>本项目为业余开源开发，按“原样”提供，不保证不存在 Bug 或漏洞。开发者不对因使用本项目运行不安全脚本带来的数据泄露、系统损坏及法律责任等后果负责。</p>
       </div>
     </div>
 

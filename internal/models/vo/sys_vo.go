@@ -1,6 +1,7 @@
 package vo
 
 import (
+	"github.com/engigu/baihu-panel/internal/constant"
 	"github.com/engigu/baihu-panel/internal/models"
 )
 
@@ -35,7 +36,9 @@ type EnvVO struct {
 	Name      string           `json:"name"`
 	Value     string           `json:"value"`
 	Remark    string           `json:"remark"`
+	Type      string           `json:"type"`
 	Hidden    bool             `json:"hidden"`
+	Enabled   bool             `json:"enabled"`
 	CreatedAt models.LocalTime `json:"created_at"`
 	UpdatedAt models.LocalTime `json:"updated_at"`
 }
@@ -45,12 +48,18 @@ func ToEnvVO(env *models.EnvironmentVariable) *EnvVO {
 	if env == nil {
 		return nil
 	}
+	val := string(env.Value)
+	if env.Type == constant.EnvTypeSecret {
+		val = "********"
+	}
 	return &EnvVO{
 		ID:        env.ID,
 		Name:      env.Name,
-		Value:     env.Value,
+		Value:     val,
 		Remark:    env.Remark,
+		Type:      env.Type,
 		Hidden:    env.Hidden,
+		Enabled:   env.Enabled,
 		CreatedAt: env.CreatedAt,
 		UpdatedAt: env.UpdatedAt,
 	}
@@ -88,39 +97,9 @@ type LoginLogVO struct {
 	CreatedAt models.LocalTime `json:"created_at"`
 }
 
-// ToLoginLogVO 将 LoginLog 模型转换为 LoginLogVO
-func ToLoginLogVO(log *models.LoginLog) *LoginLogVO {
-	if log == nil {
-		return nil
-	}
-	return &LoginLogVO{
-		ID:        log.ID,
-		Username:  log.Username,
-		IP:        log.IP,
-		UserAgent: log.UserAgent,
-		Status:    log.Status,
-		Message:   log.Message,
-		CreatedAt: log.CreatedAt,
-	}
-}
-
-// ToLoginLogVOList 将 LoginLog 模型列表转换为 LoginLogVO 列表
-func ToLoginLogVOList(logs []*models.LoginLog) []*LoginLogVO {
-	if logs == nil {
-		return nil
-	}
-	vos := make([]*LoginLogVO, len(logs))
-	for i, l := range logs {
-		vos[i] = ToLoginLogVO(l)
-	}
-	return vos
-}
-
-// ToLoginLogVOListFromModels 将 LoginLog 模型列表转换为 LoginLogVO 列表
-func ToLoginLogVOListFromModels(logs []models.LoginLog) []*LoginLogVO {
-	vos := make([]*LoginLogVO, len(logs))
-	for i := range logs {
-		vos[i] = ToLoginLogVO(&logs[i])
-	}
-	return vos
+// TokenConfig Token 配置结构体
+type TokenConfig struct {
+	Enabled  bool   `json:"enabled"`
+	Token    string `json:"token"`
+	ExpireAt string `json:"expire_at"`
 }

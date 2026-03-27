@@ -57,6 +57,9 @@ COPY . .
 # Copy frontend dist (needed for embedding)
 COPY --from=frontend-builder /app/web/dist ./internal/static/dist
 
+# Generate Swagger
+RUN go run github.com/swaggo/swag/cmd/swag@latest init -g main.go -o ./openapi_docs
+
 # Build Go binary
 RUN VERSION_VAL=$(cat /build-info/version.txt) && \
     BUILD_TIME_VAL=$(cat /build-info/build_time.txt) && \
@@ -131,8 +134,12 @@ WORKDIR /app
 # Copy Go binary
 COPY --from=backend-builder /app/baihu .
 
+# Copy frontend assets to /www/baihu (No embed in Docker)
+COPY --from=frontend-builder /app/web/dist /www/baihu
+
 # Copy configs and entrypoint
 COPY --from=backend-builder /app/configs ./configs
+COPY --from=backend-builder /app/example ./example
 COPY docker/docker-entrypoint.sh .
 
 
@@ -140,7 +147,10 @@ COPY docker/docker-entrypoint.sh .
 # Copy agent binaries to /opt/agent
 COPY --from=agent-builder /opt/agent /opt/agent
 
+COPY docker/mise-hook.sh /etc/profile.d/mise-hook.sh
+
 RUN chmod +x docker-entrypoint.sh \
+    && cat /etc/profile.d/mise-hook.sh >> /etc/bash.bashrc \
     && echo "set encoding=utf-8" >> /etc/vim/vimrc \
     && ln -sf /app/baihu /usr/local/bin/baihu
 

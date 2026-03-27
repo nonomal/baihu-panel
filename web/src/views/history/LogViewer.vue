@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted, nextTick } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { X, Search } from 'lucide-vue-next'
+import Ansi from 'ansi-to-vue3'
 
 const props = defineProps<{
   open: boolean
@@ -16,20 +17,39 @@ const emit = defineEmits<{
 }>()
 
 const searchKeyword = ref('')
-
-// 高亮搜索结果
-const highlightedContent = computed(() => {
-  if (!searchKeyword.value.trim()) return props.content
-
-  const keyword = searchKeyword.value.trim()
-  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const regex = new RegExp(`(${escaped})`, 'gi')
-  return props.content.replace(regex, '<mark class="bg-yellow-300 text-black">$1</mark>')
-})
+const scrollContainer = ref<HTMLElement | null>(null)
+const shouldAutoScroll = ref(true)
 
 function close() {
   emit('update:open', false)
 }
+
+// 处理滚动事件，判断用户是否手动向上滚动
+function handleScroll() {
+  if (!scrollContainer.value) return
+  const { scrollTop, scrollHeight, clientHeight } = scrollContainer.value
+  // 如果距离底部小于 50px，认为用户想继续跟随滚动
+  const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
+  shouldAutoScroll.value = isAtBottom
+}
+
+// 滚动到底部
+const scrollToBottom = async (smooth = true) => {
+  await nextTick()
+  if (scrollContainer.value && shouldAutoScroll.value) {
+    scrollContainer.value.scrollTo({
+      top: scrollContainer.value.scrollHeight,
+      behavior: smooth ? 'smooth' : 'auto'
+    })
+  }
+}
+
+// 监听内容变化，实现自动滚动
+watch(() => props.content, () => {
+  if (props.open) {
+    scrollToBottom(true)
+  }
+})
 
 // 统一控制 Body 滚动
 function toggleBodyScroll(lock: boolean) {
@@ -44,7 +64,9 @@ function toggleBodyScroll(lock: boolean) {
 watch(() => props.open, (val) => {
   if (val) {
     searchKeyword.value = ''
+    shouldAutoScroll.value = true // 每次重新打开都开启自动滚动
     toggleBodyScroll(true)
+    scrollToBottom(false) // 首次打开立刻定位，不滑动
   } else {
     toggleBodyScroll(false)
   }
@@ -89,8 +111,10 @@ onUnmounted(() => {
             </Button>
           </div>
         </div>
-        <div class="flex-1 overflow-auto bg-black/5 dark:bg-white/5">
-          <pre class="p-3 sm:p-4 text-xs font-mono whitespace-pre-wrap break-all" v-html="highlightedContent"></pre>
+        <div ref="scrollContainer" class="flex-1 overflow-auto bg-black/5 dark:bg-white/5" @scroll="handleScroll">
+          <div class="p-3 sm:p-4 text-xs font-mono whitespace-pre-wrap break-all leading-relaxed">
+            <Ansi>{{ content }}</Ansi>
+          </div>
         </div>
       </div>
     </div>

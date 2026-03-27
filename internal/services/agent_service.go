@@ -3,6 +3,7 @@ package services
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/engigu/baihu-panel/internal/constant"
 	"github.com/engigu/baihu-panel/internal/database"
 	"github.com/engigu/baihu-panel/internal/logger"
+	"github.com/engigu/baihu-panel/internal/executor"
 	"github.com/engigu/baihu-panel/internal/models"
 	"github.com/engigu/baihu-panel/internal/services/tasks"
 	"github.com/engigu/baihu-panel/internal/utils"
@@ -78,7 +80,8 @@ func (s *AgentService) DeleteToken(id string) error {
 // ValidateToken 验证令牌
 func (s *AgentService) ValidateToken(token string) (*models.AgentToken, error) {
 	var agentToken models.AgentToken
-	if err := database.DB.Where("token = ?", token).First(&agentToken).Error; err != nil {
+	res := database.DB.Where("token = ?", token).Limit(1).Find(&agentToken)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return nil, &ServiceError{Message: "无效的令牌"}
 	}
 
@@ -118,7 +121,8 @@ func (s *AgentService) RegisterByToken(token string, machineID string, ip string
 	// 如果提供了 machine_id，先检查是否已存在
 	if machineID != "" {
 		var existing models.Agent
-		if err := database.DB.Where("machine_id = ?", machineID).First(&existing).Error; err == nil {
+		res := database.DB.Where("machine_id = ?", machineID).Limit(1).Find(&existing)
+		if res.Error == nil && res.RowsAffected > 0 {
 			// 已存在，更新 token 和状态，复用已有 Agent
 			now := models.LocalTime(time.Now())
 			database.DB.Model(&existing).Updates(map[string]interface{}{
@@ -169,7 +173,8 @@ func (s *AgentService) Register(req *models.AgentRegisterRequest, ip string) (*m
 
 	// 检查是否已存在同名 Agent
 	var existing models.Agent
-	if err := database.DB.Where("name = ?", req.Name).First(&existing).Error; err == nil {
+	res := database.DB.Where("name = ?", req.Name).Limit(1).Find(&existing)
+	if res.Error == nil && res.RowsAffected > 0 {
 		return nil, "", &ServiceError{Message: "Agent 名称已存在"}
 	}
 
@@ -221,7 +226,8 @@ func (s *AgentService) Delete(id string) error {
 // GetByID 根据 ID 获取 Agent
 func (s *AgentService) GetByID(id string) *models.Agent {
 	var agent models.Agent
-	if err := database.DB.Where("id = ?", id).First(&agent).Error; err != nil {
+	res := database.DB.Where("id = ?", id).Limit(1).Find(&agent)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return nil
 	}
 	return &agent
@@ -230,7 +236,8 @@ func (s *AgentService) GetByID(id string) *models.Agent {
 // GetByToken 根据 Token 获取 Agent
 func (s *AgentService) GetByToken(token string) *models.Agent {
 	var agent models.Agent
-	if err := database.DB.Where("token = ?", token).First(&agent).Error; err != nil {
+	res := database.DB.Where("token = ?", token).Limit(1).Find(&agent)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return nil
 	}
 	return &agent
@@ -239,7 +246,8 @@ func (s *AgentService) GetByToken(token string) *models.Agent {
 // GetByMachineID 根据 MachineID 获取 Agent
 func (s *AgentService) GetByMachineID(machineID string) *models.Agent {
 	var agent models.Agent
-	if err := database.DB.Where("machine_id = ?", machineID).First(&agent).Error; err != nil {
+	res := database.DB.Where("machine_id = ?", machineID).Limit(1).Find(&agent)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return nil
 	}
 	return &agent
@@ -310,20 +318,43 @@ func (s *AgentService) GetTasks(agentID string) []models.AgentTask {
 	database.DB.Where("agent_id = ? AND enabled = ?", agentID, true).Find(&tasks)
 
 	result := make([]models.AgentTask, len(tasks))
+	envService := NewEnvService()
+
 	for i, task := range tasks {
-		// 将环境变量 ID 转换为实际的环境变量键值对
-		envVarsStr := s.buildEnvVarsString(task.Envs)
+		// 加载环境配置
+		var envVars []string
+		
+		// 检查全量注入模式
+		allEnvs := false
+		if task.Config != "" {
+			var config models.TaskConfig
+			if err := json.Unmarshal([]byte(task.Config), &config); err == nil {
+				if config.AllEnvs {
+					allEnvs = true
+				}
+			}
+		}
+
+		var secrets []string
+		if allEnvs {
+			envVars, secrets = envService.GetAllEnvVarsAndSecrets()
+		} else if string(task.Envs) != "" {
+			envVars, secrets = envService.GetEnvVarsAndSecretsByIDs(string(task.Envs))
+		}
+
+		envVarsStr := executor.FormatEnvVars(envVars)
 
 		result[i] = models.AgentTask{
-			ID:        task.ID,
-			Name:      task.Name,
-			Command:   task.Command,
-			Schedule:  task.Schedule,
-			Timeout:   task.Timeout,
-			WorkDir:   task.WorkDir,
-			Envs:        envVarsStr, // 传递 "KEY1=VALUE1,KEY2=VALUE2" 格式
-			Languages:   task.Languages,
+			ID:          task.ID,
+			Name:        task.Name,
+			Command:     string(task.Command),
+			Schedule:    task.Schedule,
+			Timeout:     task.Timeout,
+			WorkDir:     task.WorkDir,
+			Envs:        envVarsStr,
+			Languages:   []map[string]string(task.Languages),
 			RandomRange: task.RandomRange,
+			Secrets:     secrets,
 			Enabled:     task.Enabled,
 		}
 	}
@@ -331,30 +362,6 @@ func (s *AgentService) GetTasks(agentID string) []models.AgentTask {
 	return result
 }
 
-// buildEnvVarsString 将环境变量 ID 列表转换为键值对字符串
-func (s *AgentService) buildEnvVarsString(envIDs string) string {
-	if envIDs == "" {
-		return ""
-	}
-
-	var envVars []models.EnvironmentVariable
-	ids := strings.Split(envIDs, ",")
-	database.DB.Where("id IN ?", ids).Find(&envVars)
-
-	if len(envVars) == 0 {
-		return ""
-	}
-
-	// 构建 "KEY1=VALUE1,KEY2=VALUE2" 格式
-	pairs := make([]string, 0, len(envVars))
-	for _, env := range envVars {
-		// 对值进行转义，避免特殊字符问题
-		encodedValue := strings.ReplaceAll(env.Value, ",", "{{COMMA}}")
-		encodedValue = strings.ReplaceAll(encodedValue, "=", "{{EQUAL}}")
-		pairs = append(pairs, fmt.Sprintf("%s=%s", env.Name, encodedValue))
-	}
-	return strings.Join(pairs, ",")
-}
 
 // ReportResult Agent 上报执行结果
 func (s *AgentService) ReportResult(result *models.AgentTaskResult) error {

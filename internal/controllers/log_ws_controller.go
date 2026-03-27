@@ -34,10 +34,11 @@ func (lc *LogWSController) StreamLog(c *gin.Context) {
 
 	// 1. 检查数据库中是否已结束
 	var taskLog models.TaskLog
-	if err := database.DB.Where("id = ?", logID).First(&taskLog).Error; err == nil {
+	res := database.DB.Where("id = ?", logID).Limit(1).Find(&taskLog)
+	if res.Error == nil && res.RowsAffected > 0 {
 		if taskLog.Status != "running" {
 			// 已结束，读取库内日志
-			content, err := utils.DecompressFromBase64(taskLog.Output)
+			content, err := utils.DecompressFromBase64(string(taskLog.Output))
 			if err != nil {
 				conn.WriteMessage(websocket.TextMessage, []byte("解压日志失败: "+err.Error()))
 				return
@@ -74,8 +75,9 @@ func (lc *LogWSController) StreamLog(c *gin.Context) {
 			if !ok {
 				// 任务结束，尝试刷新最后一次库内完整内容
 				var finalLog models.TaskLog
-				if err := database.DB.Where("id = ?", logID).First(&finalLog).Error; err == nil {
-					content, _ := utils.DecompressFromBase64(finalLog.Output)
+				res := database.DB.Where("id = ?", logID).Limit(1).Find(&finalLog)
+				if res.Error == nil && res.RowsAffected > 0 {
+					content, _ := utils.DecompressFromBase64(string(finalLog.Output))
 					if content != "" {
 						conn.WriteMessage(websocket.TextMessage, []byte("\n--- 任务已结束 ---\n"))
 						// 这里可以选择性再推一次完整版，或直接退出

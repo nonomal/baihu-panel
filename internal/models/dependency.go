@@ -14,7 +14,7 @@ type Dependency struct {
 	Language    string    `json:"language" gorm:"size:100;index"`     // 关联语言 (node, python...)
 	LangVersion string    `json:"lang_version" gorm:"size:100;index"` // 关联语言版本
 	Remark      string    `json:"remark" gorm:"size:255"`
-	Log         string    `json:"log" gorm:"type:text"`
+	Log         BigText   `json:"log"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

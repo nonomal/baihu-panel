@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -23,6 +24,7 @@ type Task interface {
 	GetTimeout() int
 	GetWorkDir() string
 	GetEnvs() string
+	GetEnvVars() []string
 	GetLanguages() []map[string]string
 	GetUseMise() bool
 }
@@ -32,6 +34,7 @@ type CronTask interface {
 	Task
 	GetSchedule() string
 	UseMise() bool
+	GetSecrets() []string
 	GetRandomRange() int
 }
 
@@ -113,6 +116,7 @@ func ExecuteWithHooks(ctx context.Context, req Request, stdout, stderr io.Writer
 
 	// 如果指定使用 mise，则预先构建好带 mise 的命令，这样 PreExecute 记录的就是完整命令
 	if req.UseMise {
+		utils.InjectNodePath(&req.Envs, req.Languages)
 		req.Command = utils.BuildMiseCommand(req.Command, req.Languages)
 		req.UseMise = false
 	}
@@ -171,7 +175,7 @@ func ExecuteWithHooks(ctx context.Context, req Request, stdout, stderr io.Writer
 		)
 		f, ptyErr := pty.Start(cmd)
 		if ptyErr == nil {
-		logger.Infof("[Executor] 任务 #%s 启动于 PTY 模式", logID)
+			logger.Infof("[Executor] 任务 #%s 启动于 PTY 模式", logID)
 			ptyFile = f
 			started = true
 			copyDone = make(chan struct{})
@@ -325,8 +329,36 @@ func ParseEnvVars(envStr string) []string {
 		// 解码特殊字符
 		pair = strings.ReplaceAll(pair, "{{COMMA}}", ",")
 		pair = strings.ReplaceAll(pair, "{{EQUAL}}", "=")
+		pair = strings.ReplaceAll(pair, "{{NL}}", "\n")
 		result = append(result, pair)
 	}
 
 	return result
+}
+
+// FormatEnvVars 将环境变量列表格式化为逗号分隔的字符串 "KEY1=VALUE1,KEY2=VALUE2"
+// 会对 , 和 = 以及换行符进行转义
+func FormatEnvVars(envs []string) string {
+	if len(envs) == 0 {
+		return ""
+	}
+
+	pairs := make([]string, 0, len(envs))
+	for _, pair := range envs {
+		// 寻找第一个等号
+		idx := strings.Index(pair, "=")
+		if idx == -1 {
+			continue
+		}
+		name := pair[:idx]
+		value := pair[idx+1:]
+
+		// 转义特殊字符
+		encodedValue := strings.ReplaceAll(value, ",", "{{COMMA}}")
+		encodedValue = strings.ReplaceAll(encodedValue, "=", "{{EQUAL}}")
+		encodedValue = strings.ReplaceAll(encodedValue, "\n", "{{NL}}")
+		pairs = append(pairs, fmt.Sprintf("%s=%s", name, encodedValue))
+	}
+
+	return strings.Join(pairs, ",")
 }

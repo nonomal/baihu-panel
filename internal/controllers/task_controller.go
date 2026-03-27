@@ -1,9 +1,12 @@
 package controllers
 
 import (
+	"encoding/json"
 	"path/filepath"
+	"strings"
 
 	"github.com/engigu/baihu-panel/internal/constant"
+	"github.com/engigu/baihu-panel/internal/models"
 	"github.com/engigu/baihu-panel/internal/models/vo"
 	"github.com/engigu/baihu-panel/internal/services"
 	"github.com/engigu/baihu-panel/internal/services/tasks"
@@ -37,6 +40,9 @@ func resolveWorkDir(workDir string) string {
 		return absPath
 	}
 	// 如果已经是绝对路径，直接返回
+	if strings.HasPrefix(workDir, "$SCRIPTS_DIR$") {
+		return workDir
+	}
 	if filepath.IsAbs(workDir) {
 		return workDir
 	}
@@ -61,7 +67,7 @@ func (tc *TaskController) CreateTask(c *gin.Context) {
 		WorkDir     string              `json:"work_dir"`
 		CleanConfig string              `json:"clean_config"`
 		Envs        string              `json:"envs"`
-		Languages   []map[string]string `json:"languages"`
+		Languages   models.TaskLanguages `json:"languages"`
 		AgentID       *string             `json:"agent_id"`
 		TriggerType   string              `json:"trigger_type"`
 		RetryCount    int                 `json:"retry_count"`
@@ -93,7 +99,30 @@ func (tc *TaskController) CreateTask(c *gin.Context) {
 		workDir = resolveWorkDir(req.WorkDir)
 	}
 
-	task := tc.taskService.CreateTask(req.Name, req.Command, req.Schedule, req.Timeout, workDir, req.CleanConfig, req.Envs, req.Type, req.Config, req.AgentID, req.Languages, req.TriggerType, req.Tags, req.RetryCount, req.RetryInterval, req.RandomRange)
+	var sourceID string
+	// 如果是仓库同步任务，根据 URL 生成 SourceID 用于去重
+	if req.Type == constant.TaskTypeRepo && req.Config != "" {
+		var repoCfg struct {
+			SourceURL string `json:"source_url"`
+			Branch    string `json:"branch"`
+		}
+		if err := json.Unmarshal([]byte(req.Config), &repoCfg); err == nil && repoCfg.SourceURL != "" {
+			sourceID = "repo_" + utils.GetRepoIdentifier(repoCfg.SourceURL, repoCfg.Branch)
+		}
+	}
+
+	var task *models.Task
+	// 去重逻辑：如果已存在相同 SourceID 的仓库任务，则改为更新
+	if sourceID != "" {
+		task = tc.taskService.GetTaskBySourceID(sourceID)
+		if task != nil {
+			task = tc.taskService.UpdateTask(task.ID, req.Name, req.Command, req.Schedule, req.Timeout, workDir, req.CleanConfig, req.Envs, true, req.Type, req.Config, req.AgentID, req.Languages, req.TriggerType, req.Tags, req.RetryCount, req.RetryInterval, req.RandomRange, sourceID)
+		}
+	}
+
+	if task == nil {
+		task = tc.taskService.CreateTask(req.Name, req.Command, req.Schedule, req.Timeout, workDir, req.CleanConfig, req.Envs, req.Type, req.Config, req.AgentID, req.Languages, req.TriggerType, req.Tags, req.RetryCount, req.RetryInterval, req.RandomRange, sourceID)
+	}
 
 	// 如果是 Agent 任务，通知 Agent；否则添加到本地 cron
 	if task.AgentID != nil && *task.AgentID != "" {
@@ -105,6 +134,21 @@ func (tc *TaskController) CreateTask(c *gin.Context) {
 	utils.Success(c, vo.ToTaskVO(task))
 }
 
+// GetTasks 获取任务列表
+// @Summary 获取任务列表
+// @Description 分页获取任务列表，支持按名称、Agent ID、标签、类型筛选
+// @Tags 任务管理
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param name query string false "任务名称"
+// @Param agent_id query string false "Agent ID"
+// @Param tags query string false "标签"
+// @Param type query string false "任务类型"
+// @Param page query int false "页码"
+// @Param page_size query int false "每页数量"
+// @Success 200 {object} utils.Response{data=utils.PaginationData{data=[]vo.TaskVO}}
+// @Router /tasks [get]
 func (tc *TaskController) GetTasks(c *gin.Context) {
 	p := utils.ParsePagination(c)
 	name := c.DefaultQuery("name", "")
@@ -122,6 +166,17 @@ func (tc *TaskController) GetTasks(c *gin.Context) {
 	utils.PaginatedResponse(c, vo.ToTaskVOListFromModels(tasks), total, p)
 }
 
+// GetTask 获取任务详情
+// @Summary 获取任务详情
+// @Description 根据 ID 获取任务详情
+// @Tags 任务管理
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "任务ID"
+// @Success 200 {object} utils.Response{data=vo.TaskVO}
+// @Failure 404 {object} utils.Response
+// @Router /tasks/{id} [get]
 func (tc *TaskController) GetTask(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -138,6 +193,18 @@ func (tc *TaskController) GetTask(c *gin.Context) {
 	utils.Success(c, vo.ToTaskVO(task))
 }
 
+// UpdateTask 更新任务
+// @Summary 更新任务
+// @Description 根据 ID 更新任务信息
+// @Tags 任务管理
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "任务ID"
+// @Param body body object true "任务更新信息"
+// @Success 200 {object} utils.Response{data=vo.TaskVO}
+// @Failure 404 {object} utils.Response
+// @Router /tasks/{id} [put]
 func (tc *TaskController) UpdateTask(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -164,7 +231,7 @@ func (tc *TaskController) UpdateTask(c *gin.Context) {
 		CleanConfig string              `json:"clean_config"`
 		Envs        string              `json:"envs"`
 		Enabled     bool                `json:"enabled"`
-		Languages   []map[string]string `json:"languages"`
+		Languages   models.TaskLanguages `json:"languages"`
 		AgentID       *string             `json:"agent_id"`
 		TriggerType   string              `json:"trigger_type"`
 		RetryCount    int                 `json:"retry_count"`
@@ -190,7 +257,20 @@ func (tc *TaskController) UpdateTask(c *gin.Context) {
 		workDir = resolveWorkDir(req.WorkDir)
 	}
 
-	task := tc.taskService.UpdateTask(id, req.Name, req.Command, req.Schedule, req.Timeout, workDir, req.CleanConfig, req.Envs, req.Enabled, req.Type, req.Config, req.AgentID, req.Languages, req.TriggerType, req.Tags, req.RetryCount, req.RetryInterval, req.RandomRange)
+	var sourceID string
+	if req.Type == constant.TaskTypeRepo && req.Config != "" {
+		var repoCfg struct {
+			SourceURL string `json:"source_url"`
+			Branch    string `json:"branch"`
+		}
+		if err := json.Unmarshal([]byte(req.Config), &repoCfg); err == nil && repoCfg.SourceURL != "" {
+			sourceID = "repo_" + utils.GetRepoIdentifier(repoCfg.SourceURL, repoCfg.Branch)
+		}
+	} else if oldTask != nil {
+		sourceID = oldTask.SourceID
+	}
+
+	task := tc.taskService.UpdateTask(id, req.Name, req.Command, req.Schedule, req.Timeout, workDir, req.CleanConfig, req.Envs, req.Enabled, req.Type, req.Config, req.AgentID, req.Languages, req.TriggerType, req.Tags, req.RetryCount, req.RetryInterval, req.RandomRange, sourceID)
 	if task == nil {
 		utils.NotFound(c, "任务不存在")
 		return
@@ -221,6 +301,17 @@ func (tc *TaskController) UpdateTask(c *gin.Context) {
 	utils.Success(c, vo.ToTaskVO(task))
 }
 
+// DeleteTask 删除任务
+// @Summary 删除任务
+// @Description 根据 ID 删除任务
+// @Tags 任务管理
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "任务ID"
+// @Success 200 {object} utils.Response
+// @Failure 404 {object} utils.Response
+// @Router /tasks/{id} [delete]
 func (tc *TaskController) DeleteTask(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -251,6 +342,105 @@ func (tc *TaskController) DeleteTask(c *gin.Context) {
 	utils.SuccessMsg(c, "删除成功")
 }
 
+func (tc *TaskController) BatchDeleteTasks(c *gin.Context) {
+	var req struct {
+		IDs []string `json:"ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+
+	// 收集涉及到的 AgentID
+	agentIDs := make(map[string]struct{})
+	for _, id := range req.IDs {
+		// 获取任务信息
+		task := tc.taskService.GetTaskByID(id)
+		if task != nil {
+			if task.AgentID != nil && *task.AgentID != "" {
+				agentIDs[*task.AgentID] = struct{}{}
+			}
+		}
+
+		// 移除 cron 调度
+		tc.executorService.RemoveCronTask(id)
+	}
+
+	// 执行批量删除
+	count := tc.taskService.BatchDeleteTasks(req.IDs)
+
+	// 通知受影响的 Agent
+	for agentID := range agentIDs {
+		tc.agentWSManager.BroadcastTasks(agentID)
+	}
+
+	utils.Success(c, gin.H{"count": count})
+}
+
+// BatchDeleteByQuery 根据查询条件批量删除任务
+// @Summary 根据查询条件批量删除任务
+// @Description 根据查询条件批量删除匹配的所有任务
+// @Tags 任务管理
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param name query string false "任务名称关键词"
+// @Param tags query string false "标签关键词"
+// @Param type query string false "任务类型"
+// @Param agent_id query string false "执行位置(节点ID)"
+// @Success 200 {object} utils.Response{data=map[string]int}
+// @Failure 401 {object} utils.Response "未授权"
+// @Router /tasks/batch-by-query [delete]
+func (tc *TaskController) BatchDeleteByQuery(c *gin.Context) {
+	name := c.Query("name")
+	agentIDStr := c.Query("agent_id")
+	tags := c.Query("tags")
+	taskType := c.Query("type")
+
+	var agentID *string
+	if agentIDStr != "" {
+		agentID = &agentIDStr
+	}
+
+	tasks, _ := tc.taskService.GetTasksWithPagination(1, 999999, name, agentID, tags, taskType)
+	if len(tasks) == 0 {
+		utils.Success(c, gin.H{"count": 0})
+		return
+	}
+
+	var ids []string
+	agentIDs := make(map[string]struct{})
+	for _, task := range tasks {
+		ids = append(ids, task.ID)
+		if task.AgentID != nil && *task.AgentID != "" {
+			agentIDs[*task.AgentID] = struct{}{}
+		}
+		// 移除 cron 调度
+		tc.executorService.RemoveCronTask(task.ID)
+	}
+
+	// 执行批量删除
+	count := tc.taskService.BatchDeleteTasks(ids)
+
+	// 通知受影响的 Agent
+	for aID := range agentIDs {
+		tc.agentWSManager.BroadcastTasks(aID)
+	}
+
+	utils.Success(c, gin.H{"count": count})
+}
+
+// StopTask 停止任务
+// @Summary 停止任务
+// @Description 根据运行日志 ID 停止正在执行的任务
+// @Tags 任务管理
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param logID path string true "运行日志ID"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Router /tasks/stop/{logID} [post]
 func (tc *TaskController) StopTask(c *gin.Context) {
 	logID := c.Param("logID")
 	if logID == "" {

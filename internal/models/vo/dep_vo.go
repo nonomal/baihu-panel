@@ -31,7 +31,7 @@ func ToDependencyVO(dep *models.Dependency) *DependencyVO {
 		Language:    dep.Language,
 		LangVersion: dep.LangVersion,
 		Remark:      dep.Remark,
-		Log:         dep.Log,
+		Log:         string(dep.Log),
 		CreatedAt:   dep.CreatedAt,
 		UpdatedAt:   dep.UpdatedAt,
 	}

@@ -53,7 +53,7 @@ export const api = {
     login: (data: { username: string; password: string }) =>
       request<{ user: string }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
     logout: () => request('/auth/logout', { method: 'POST' }),
-    me: () => request<{ username: string }>('/auth/me'),
+    me: () => request<{ username: string; role: string }>('/auth/me'),
     register: (data: { username: string; password: string; email: string }) =>
       request('/auth/register', { method: 'POST', body: JSON.stringify(data) })
   },
@@ -71,6 +71,15 @@ export const api = {
     create: (data: Partial<Task>) => request<Task>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Task>) => request<Task>(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/tasks/${id}`, { method: 'DELETE' }),
+    batchDelete: (ids: string[]) => request<{ count: number }>('/tasks/batch-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
+    batchDeleteByQuery: (params?: { name?: string, agent_id?: string, tags?: string, type?: string }) => {
+      const query = new URLSearchParams()
+      if (params?.name) query.append('name', params.name)
+      if (params?.agent_id) query.append('agent_id', params.agent_id)
+      if (params?.tags) query.append('tags', params.tags)
+      if (params?.type && params.type !== 'all') query.append('type', params.type)
+      return request<{ count: number }>(`/tasks/batch-by-query?${query.toString()}`, { method: 'DELETE' })
+    },
     execute: (id: string) => request<ExecutionResult>(`/execute/task/${id}`, { method: 'POST' }),
     stop: (logID: string) => request(`/tasks/stop/${logID}`, { method: 'POST' })
   },
@@ -81,13 +90,15 @@ export const api = {
     delete: (id: string) => request(`/scripts/${id}`, { method: 'DELETE' })
   },
   env: {
-    list: (params?: { page?: number; page_size?: number; name?: string }) => {
+    list: (params?: { page?: number; page_size?: number; name?: string; type?: string }) => {
       const query = new URLSearchParams()
       if (params?.page) query.set('page', String(params.page))
       if (params?.page_size) query.set('page_size', String(params.page_size))
       if (params?.name) query.set('name', params.name)
+      if (params?.type && params.type !== 'all') query.set('type', params.type)
       return request<EnvListResponse>(`/env?${query}`)
     },
+    secretStatus: () => request<boolean>('/env/secret-status'),
     all: () => request<EnvVar[]>('/env/all'),
     tasks: (id: string) => request<Task[]>(`/env/${id}/tasks`),
     create: (data: Partial<EnvVar>) => request<EnvVar>('/env', { method: 'POST', body: JSON.stringify(data) }),
@@ -126,18 +137,19 @@ export const api = {
     taskStats: (days?: number) => request<TaskStatsItem[]>(`/taskstats${days ? `?days=${days}` : ''}`)
   },
   settings: {
-    changePassword: (data: { old_password: string; new_password: string }) =>
+    changePassword: (data: { old_username?: string; username?: string; old_password: string; new_password?: string }) =>
       request('/settings/password', { method: 'POST', body: JSON.stringify(data) }),
     getSite: () => request<SiteSettings>('/settings/site'),
     getPublicSite: () => request<{ title: string; subtitle: string; icon: string; demo_mode: boolean }>('/settings/public'),
     updateSite: (data: SiteSettings) =>
       request('/settings/site', { method: 'PUT', body: JSON.stringify(data) }),
-    generateApiToken: () => request<{ token: string }>('/settings/site/api-token/generate', { method: 'POST' }),
+    generateOpenapiToken: () => request<{ token: string }>('/settings/site/openapi-token/generate', { method: 'POST' }),
     getScheduler: () => request<SchedulerSettings>('/settings/scheduler'),
     updateScheduler: (data: SchedulerSettings) =>
       request('/settings/scheduler', { method: 'PUT', body: JSON.stringify(data) }),
     getPaths: () => request<{ scripts_dir: string }>('/settings/paths'),
     getAbout: () => request<AboutInfo>('/settings/about'),
+    getChangelog: () => request<string>('/settings/changelog'),
     get: (section: string, key: string) => request<string>(`/settings/${section}/${key}`),
     generateToken: (section: string, key: string) =>
       request<string>(`/settings/${section}/${key}/generate`, { method: 'POST' }),
@@ -267,7 +279,12 @@ export const api = {
     sync: () => request<void>('/mise/sync', { method: 'POST' }),
     plugins: () => request<string[]>('/mise/plugins'),
     versions: (plugin: string) => request<string[]>(`/mise/versions?plugin=${plugin}`),
-    verifyCommand: (plugin: string, version: string) => request<{ command: string }>(`/mise/verify-cmd?plugin=${plugin}&version=${version}`)
+    verifyCommand: (plugin: string, version: string) => request<{ command: string }>(`/mise/verify-cmd?plugin=${plugin}&version=${version}`),
+    useGlobal: (plugin: string, version: string) => request<void>('/mise/use-global', { method: 'POST', body: JSON.stringify({ plugin, version }) }),
+    unsetGlobal: (plugin: string, version: string) => request<void>('/mise/unset-global', { method: 'POST', body: JSON.stringify({ plugin, version }) }),
+    getEnvs: () => request<Record<string, string>>('/mise/envs'),
+    setEnv: (key: string, value: string) => request<void>('/mise/envs', { method: 'POST', body: JSON.stringify({ key, value }) }),
+    unsetEnv: (key: string) => request<void>(`/mise/envs?key=${key}`, { method: 'DELETE' })
   },
   terminal: {
     cmds: () => request<{ name: string, description: string }[]>('/terminal/cmds')
@@ -284,9 +301,25 @@ export const api = {
     getBindings: () => request<NotifyBinding[]>('/notify/bindings'),
     saveBinding: (data: Partial<NotifyBinding>) =>
       request<NotifyBinding>('/notify/bindings', { method: 'POST', body: JSON.stringify(data) }),
+    saveBindingsBatch: (data: { type: string; data_id: string; bindings: Partial<NotifyBinding>[] }) =>
+      request('/notify/bindings/batch', { method: 'POST', body: JSON.stringify(data) }),
     deleteBinding: (id: string) => request('/notify/bindings/' + id, { method: 'DELETE' }),
     send: (data: { channel_id: string; title: string; text: string }) =>
       request<NotifyResult>('/notify/send', { method: 'POST', body: JSON.stringify(data) })
+  },
+  appLogs: {
+    list: (params?: { page?: number; page_size?: number; category?: string; status?: string; level?: string; keyword?: string }) => {
+      const query = new URLSearchParams()
+      if (params?.page) query.set('page', String(params.page))
+      if (params?.page_size) query.set('page_size', String(params.page_size))
+      if (params?.category) query.set('category', params.category)
+      if (params?.status) query.set('status', params.status)
+      if (params?.level) query.set('level', params.level)
+      if (params?.keyword) query.set('keyword', params.keyword)
+      return request<AppLogListResponse>(`/app-logs?${query}`)
+    },
+    markAsRead: (data: { id?: string; category?: string }) => request('/app-logs/read', { method: 'POST', body: JSON.stringify(data) }),
+    clear: (category: string) => request('/app-logs/clear', { method: 'POST', body: JSON.stringify({ category }) })
   }
 }
 
@@ -318,6 +351,8 @@ export interface Task {
   enabled: boolean
   last_run: string
   next_run: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface RepoConfig {
@@ -330,7 +365,13 @@ export interface RepoConfig {
   proxy: string
   proxy_url: string
   auth_token: string
+  whitelist_paths?: string
+  blacklist?: string
+  dependence?: string
+  extensions?: string
+  auto_add_cron?: boolean
   concurrency?: number
+  repo_source?: string
 }
 
 export interface ExecutionResult {
@@ -360,7 +401,9 @@ export interface EnvVar {
   name: string
   value: string
   remark: string
+  type: string
   hidden: boolean
+  enabled: boolean
 }
 
 export interface EnvListResponse {
@@ -416,6 +459,7 @@ export interface LogDetail {
 
 export interface AboutInfo {
   version: string
+  remote_version?: string
   build_time: string
   mem_usage: string
   goroutines: number
@@ -431,8 +475,15 @@ export interface SiteSettings {
   icon: string
   page_size: string
   cookie_days: string
-  api_token?: string
-  api_token_expire?: string
+  openapi_enabled?: boolean
+  openapi_token?: string
+  openapi_token_expire?: string
+  system_notice_days?: string
+  system_notice_max_count?: string
+  push_log_days?: string
+  push_log_max_count?: string
+  login_log_days?: string
+  login_log_max_count?: string
 }
 
 export interface SchedulerSettings {
@@ -518,7 +569,7 @@ export interface MiseLanguage {
   plugin: string
   version: string
   source: { type?: string; path?: string } | string
-  active: boolean
+  is_global: boolean
   install_path?: string
   installed_at?: string  // 安装日期
 }
@@ -549,13 +600,57 @@ export interface NotifyBinding {
   event: string
   way_id: string
   data_id: string
+  extra?: string
   created_at?: string
   updated_at?: string
+}
+
+export interface BindingExtra {
+  enable_log: boolean
+  log_limit: number
 }
 
 export interface NotifyResult {
   success: boolean
   error?: string
 }
+
+export interface AppLog {
+  id: string
+  category: string
+  title: string
+  content: string
+  level: string
+  status: string
+  ref_id: string
+  channel_name?: string
+  error_msg: string
+  created_at: string
+  read_at: string | null
+}
+
+export interface AppLogListResponse {
+  data: AppLog[]
+  total: number
+}
+
+export const LOG_CATEGORY = {
+  SYSTEM_NOTICE: 'system_notice',
+  PUSH_LOG: 'push_log',
+  LOGIN_LOG: 'login_log'
+} as const
+
+export const LOG_LEVEL = {
+  INFO: 'info',
+  WARNING: 'warning',
+  ERROR: 'error'
+} as const
+
+export const LOG_STATUS = {
+  UNREAD: 'unread',
+  READ: 'read',
+  SUCCESS: 'success',
+  FAILED: 'failed'
+} as const
 
 

@@ -1,8 +1,8 @@
 package controllers
 
 import (
+	"encoding/json"
 	"bufio"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -116,11 +116,9 @@ func (tc *TerminalController) handlePtyMode(conn *websocket.Conn, userID string)
 		cmd.Env = append(cmd.Env, "PATH="+pathStr)
 	}
 
-	// 注入环境变量
-	envVars := tc.envService.GetEnvVarsByUserID(userID)
-	for _, env := range envVars {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Name, env.Value))
-	}
+	// 注入环境变量（支持同名合并）
+	envVars := tc.envService.GetFormattedEnvVarsByUserID(userID)
+	cmd.Env = append(cmd.Env, envVars...)
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
@@ -161,6 +159,20 @@ func (tc *TerminalController) handlePtyMode(conn *websocket.Conn, userID string)
 		if err != nil {
 			break
 		}
+
+		// 处理调整窗口大小的消息
+		if len(message) > 0 && message[0] == '{' {
+			var resizeMsg struct {
+				Type string `json:"type"`
+				Rows uint16 `json:"rows"`
+				Cols uint16 `json:"cols"`
+			}
+			if err := json.Unmarshal(message, &resizeMsg); err == nil && resizeMsg.Type == "resize" {
+				pty.Setsize(ptmx, &pty.Winsize{Rows: resizeMsg.Rows, Cols: resizeMsg.Cols})
+				continue
+			}
+		}
+
 		if _, err := ptmx.Write(message); err != nil {
 			break
 		}
@@ -191,10 +203,9 @@ func (tc *TerminalController) handlePipeMode(conn *websocket.Conn, userID string
 		cmd.Env = append(cmd.Env, "PATH="+pathStr)
 	}
 
-	envVars := tc.envService.GetEnvVarsByUserID(userID)
-	for _, env := range envVars {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Name, env.Value))
-	}
+	// 注入环境变量（支持同名合并）
+	envVars := tc.envService.GetFormattedEnvVarsByUserID(userID)
+	cmd.Env = append(cmd.Env, envVars...)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -253,6 +264,16 @@ func (tc *TerminalController) handlePipeMode(conn *websocket.Conn, userID string
 		if err != nil {
 			break
 		}
+		// 过滤调整窗口大小的消息（Windows Pipe 模式不支持调整尺寸，需过滤掉避免写入 stdin）
+		if len(message) > 0 && message[0] == '{' {
+			var resizeMsg struct {
+				Type string `json:"type"`
+			}
+			if err := json.Unmarshal(message, &resizeMsg); err == nil && resizeMsg.Type == "resize" {
+				continue
+			}
+		}
+
 		if _, err := stdin.Write(message); err != nil {
 			break
 		}
@@ -266,6 +287,12 @@ func (tc *TerminalController) handlePipeMode(conn *websocket.Conn, userID string
 
 // ExecuteShellCommand 执行单个命令并返回结果
 func (tc *TerminalController) ExecuteShellCommand(c *gin.Context) {
+	// 演示模式下禁止执行命令
+	if constant.DemoMode {
+		utils.BadRequest(c, "演示模式下不能执行命令")
+		return
+	}
+
 	var req struct {
 		Command string `json:"command" binding:"required"`
 	}
